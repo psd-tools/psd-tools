@@ -368,6 +368,7 @@ class TaggedBlock(BaseElement):
                     data = kls.read(body, version=version)
                     consumed = body.tell() - payload
                 if consumed != length:
+                    del data  # free the payload before the raw fallback reads it
                     raise ValueError("consumed %d of %d bytes" % (consumed, length))
         except ParseLimitError:
             # Leave the stream where the whole-block read would have.

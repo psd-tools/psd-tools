@@ -9,6 +9,7 @@ from psd_tools.constants import LinkedLayerType, Tag
 from psd_tools.psd import PSD
 from psd_tools.psd.descriptor import DescriptorBlock
 from psd_tools.psd.linked_layer import LinkedLayer, LinkedLayers
+from psd_tools.psd.parse_limits import ParseLimitError, ParseLimits, parse_context
 from psd_tools.psd.tagged_blocks import TaggedBlock
 
 from ..utils import check_read_write, check_write_read, full_name
@@ -255,14 +256,30 @@ def test_streamed_block_falls_back_to_raw_bytes_and_keeps_alignment() -> None:
     assert stream.tell() == len(block + _SIBLING)
 
 
-def test_streamed_block_rejects_a_short_trailing_tail() -> None:
-    """A tail too short to frame another item is unexplained leftover.
+def test_streamed_block_keeps_a_short_trailing_tail() -> None:
+    """A tail too short to frame another item is dropped, not fatal.
 
-    The block reads as raw bytes instead of a silently partial list (#899).
+    The list still parses and the stream stays aligned for what follows (#899).
     """
     items = LinkedLayers(
         [LinkedLayer(kind=LinkedLayerType.DATA, data=b"abcd")]  # type: ignore[list-item]
     )
     body = items.tobytes() + b"\x00\x00"
-    parsed = TaggedBlock.read(io.BytesIO(_lnk2_block(body, 1)), version=1)
-    assert parsed.data == body
+    stream = io.BytesIO(_lnk2_block(body, 1) + _SIBLING)
+    parsed = TaggedBlock.read(stream, version=1)
+    assert parsed.data == items
+    assert TaggedBlock.read(stream, version=1).data == b"data"
+
+
+def test_streamed_block_over_the_limit_leaves_the_stream_at_the_block_end() -> None:
+    """A parse limit error skips the payload, so the next block still parses (#899)."""
+    body = LinkedLayers(
+        [LinkedLayer(kind=LinkedLayerType.DATA, data=b"abcd")]  # type: ignore[list-item]
+    ).tobytes()
+    block = _lnk2_block(body, 1)
+    stream = io.BytesIO(block + _SIBLING)
+    with pytest.raises(ParseLimitError):
+        with parse_context(ParseLimits(max_read_bytes=len(body) - 1)):
+            TaggedBlock.read(stream, version=1)
+    assert stream.tell() == len(block)
+    assert TaggedBlock.read(stream, version=1).data == b"data"

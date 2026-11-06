@@ -54,6 +54,7 @@ class LinkedLayers(ListElement):
                     )
             read_padding(fp, length, 4)
             items.append(item)
+        fp.read()  # a tail too short to frame another item is dropped
         return cls(items)  # type: ignore[arg-type]
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
