@@ -1004,6 +1004,52 @@ class _Source:
     # in: fill opacity fades the layer's own paint without narrowing the hole
     # it punches, which is what makes "fill 0 under a knockout" a hole at all.
     knockout_shape: np.ndarray
+    dodge_factor: float | np.ndarray | None = None
+
+
+def _color_dodge_factor(layer: Layer, alpha: np.ndarray) -> float | np.ndarray | None:
+    """The verified RGB8 pixel-layer Dodge factor, before masks and opacity."""
+    if not (
+        layer.blend_mode == BlendMode.COLOR_DODGE
+        and layer._psd.color_mode == ColorMode.RGB
+        and layer._psd.depth == 8
+        and layer.kind == "pixel"
+        and layer.fill_opacity > 0
+        and (
+            layer.fill_opacity < 255
+            or layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0
+        )
+        and not layer.has_vector_mask()
+        and not layer.has_clip_layers()
+        and not layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0)
+        and not layer.has_effects()
+    ):
+        return None
+    ranges = layer._record.blending_ranges
+    if any(
+        channel and any(value != (0, 65535) for value in channel)
+        for channel in [ranges.composite_ranges, *ranges.channel_ranges]
+    ):
+        return None
+    if layer.clipping:
+        base = None
+        if layer.parent is not None:
+            for sibling in cast(Sequence[Layer], layer.parent):
+                if sibling is layer:
+                    break
+                if not sibling.clipping:
+                    base = sibling
+        if base is None or not base.has_pixels():
+            return None
+        # Clipping colors on a partially transparent base are not reconstructed
+        # correctly; its later mask and opacity are separate from this channel.
+        base_shape = base.numpy("shape")
+        if base_shape is None or not np.all((base_shape == 0) | (base_shape == 1)):
+            return None
+    fill = layer.fill_opacity / 255.0
+    if layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0:
+        return fill * alpha
+    return fill
 
 
 def _composites_as_passthrough(source: _Source, blend_mode: BlendMode) -> bool:
@@ -1374,6 +1420,10 @@ class Compositor:
         if layer.has_clip_layers():
             color = self._apply_clip_layers(layer, color, alpha)
 
+        try:
+            dodge_factor = _color_dodge_factor(layer, alpha)
+        except _UNREADABLE:
+            dodge_factor = None
         shape_mask = self._get_mask(layer)
         fill_opacity, opacity = self._get_const(layer)
         mask = shape_mask * opacity
@@ -1407,6 +1457,7 @@ class Compositor:
             knockout=knockout,
             adjustment_isolated=adjustment_isolated,
             knockout_shape=shape,
+            dodge_factor=dodge_factor,
         )
 
     def _composite_source(self, source: _Source, blend_mode: BlendMode) -> None:
@@ -1432,6 +1483,7 @@ class Compositor:
             source.alpha * source.fill_opacity,
             blend_mode,
             source.knockout,
+            source.dodge_factor,
         )
 
     def _compose_effects(
@@ -1606,6 +1658,7 @@ class Compositor:
         alpha: np.ndarray,
         blend_mode: BlendMode,
         knockout: Knockout = Knockout.NONE,
+        dodge_factor: float | np.ndarray | None = None,
     ) -> None:
         color = self._fit_source(color)
         knockout_color, knockout_alpha = self._knockout_backdrop(knockout)
@@ -1624,8 +1677,20 @@ class Compositor:
         color_b = knockout_color if knockout else self._color
 
         blend_fn = get_blend_func(blend_mode, self._color_mode)
+        if dodge_factor is not None:
+            blended = blend_fn(color_b, color * dodge_factor)
+            # Coverage already contains Fill (and intrinsic alpha). Undo only
+            # the overlap color delta's scaling, not the ordinary alpha union.
+            blended = color_b + np.divide(
+                blended - color_b,
+                dodge_factor,
+                out=np.zeros_like(blended),
+                where=dodge_factor > 0,
+            )
+        else:
+            blended = blend_fn(color_b, color)
         color_t = (shape - alpha) * alpha_b * color_b + alpha * (
-            (1.0 - alpha_b) * color + alpha_b * blend_fn(color_b, color)
+            (1.0 - alpha_b) * color + alpha_b * blended
         )
         self._color = utils.clip(
             utils.divide(
