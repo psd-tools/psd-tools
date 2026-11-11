@@ -1,6 +1,7 @@
 """Paint and fill operations for compositing."""
 
 import logging
+import math
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -425,6 +426,88 @@ def draw_pattern_fill(
     if pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
     return pixels, None
+
+
+def _vertical_overlay_geometry(
+    layer: "Layer", desc: Descriptor
+) -> tuple[float, float, bool] | None:
+    """Integer endpoints for aligned RGB8 Classic vertical overlays."""
+    if (
+        layer._psd.color_mode != ColorMode.RGB
+        or layer._psd.depth != 8
+        or layer.kind not in ("pixel", "shape")
+        or desc.get(Key.Type).enum != Enum.Linear
+        or desc.get(b"gs99") is None
+        or desc[b"gs99"].enum != b"Gcls"
+        or not bool(desc.get(b"Algn", True))
+        or bool(desc.get(b"Dthr", False))
+    ):
+        return None
+    gradient = desc[Key.Gradient]
+    if (
+        gradient[Type.GradientForm].enum != Enum.CustomStops
+        or float(gradient.get(b"Intr", 4096)) != 0
+        or any(
+            float(stop.get(Key.Midpoint, 50)) != 50
+            for key in (Key.Colors, Key.Transparency)
+            for stop in gradient.get(key, [])
+        )
+    ):
+        return None
+    angle = float(desc.get(Key.Angle, 0))
+    if angle % 180 != 90:
+        return None
+    box = layer.bbox
+    mask = layer.vector_mask
+    if mask is not None:
+        bounds = tuple(
+            value * (layer._psd.width if i % 2 == 0 else layer._psd.height)
+            for i, value in enumerate(mask.bbox)
+        )
+        # Vector coordinates are serialized as fixed-point document fractions.
+        if any(not math.isfinite(v) or abs(v - round(v)) > 1e-4 for v in bounds):
+            return None
+        left, top, right, bottom = (round(v) for v in bounds)
+        box = left, top, right, bottom
+    height = box[3] - box[1]
+    scale = float(desc.get(Key.Scale, 100)) / 100
+    offset = desc.get(b"Ofst", {})
+    horizontal = float(offset.get(b"Hrzn", 0))
+    vertical = float(offset.get(b"Vrtc", 0))
+    length = height * scale
+    start = height * (1 - scale) / 2 + height * vertical / 100
+    # Fractional endpoints require Photoshop's separate quantization rules.
+    if (
+        box[2] <= box[0]
+        or height <= 0
+        or length <= 0
+        or not math.isfinite(horizontal)
+        or not start.is_integer()
+        or not (start + length).is_integer()
+    ):
+        return None
+    return box[1] + start, length, angle % 360 == 90
+
+
+@require_scipy
+def draw_gradient_overlay(
+    layer: "Layer", desc: Descriptor
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Draw a gradient overlay without changing fill or stroke geometry."""
+    geometry = _vertical_overlay_geometry(layer, desc)
+    if geometry is None:
+        return draw_gradient_fill(layer.bbox, layer._psd.color_mode, desc)
+    start, length, descending = geometry
+    coordinates = np.arange(layer.top, layer.bottom, dtype=np.float64)
+    ramp = np.clip((coordinates - start) / length, 0, 1)
+    if descending != bool(desc.get(Key.Reverse, False)):
+        ramp = 1 - ramp
+    ramp = np.broadcast_to(ramp[:, None], (layer.height, layer.width))
+    color, alpha = _make_gradient_color(layer._psd.color_mode, desc[Key.Gradient])
+    return (
+        color(ramp) if color is not None else None,
+        alpha(ramp)[..., None] if alpha is not None else None,
+    )
 
 
 @require_scipy

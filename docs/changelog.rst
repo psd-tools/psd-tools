@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.26.2 (unreleased)
+-------------------
+- [fix] Aligned vertical linear gradient overlays respect layer height and
+  offsets on RGB8 pixel and shape layers using Classic interpolation with zero
+  smoothness, centered stop midpoints, no dithering and integer scaled endpoints (#1056)
+
 1.26.1 (2026-11-11)
 -------------------
 
