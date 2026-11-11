@@ -105,7 +105,7 @@ _UNREADABLE_FILL = (
     OverflowError,
     TypeError,
     ZeroDivisionError,
-    paint.UnreadableDescriptor,
+    paint._UnreadableDescriptor,
 )
 
 
@@ -1960,7 +1960,7 @@ class Compositor:
             path = None if fill_off else vector.draw_vector_mask(layer, self._viewport)
             try:
                 stroke_source = self._get_stroke(layer, path)
-            except paint.UnreadableDescriptor as error:
+            except paint._UnreadableDescriptor as error:
                 logger.debug("Cannot read the stroke of %s: %s", layer, error)
         if stroke_source is not None:
             assert layer.stroke is not None
@@ -2206,7 +2206,7 @@ class Compositor:
                 layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
             )
         except _UNREADABLE_FILL as error:
-            raise paint.UnreadableDescriptor(
+            raise paint._UnreadableDescriptor(
                 "Unreadable stroke fill descriptor"
             ) from error
         if color is None:
