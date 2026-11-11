@@ -9,8 +9,8 @@ import pytest
 from psd_tools import PSDImage
 from psd_tools.composite import paint
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Descriptor
-from psd_tools.terminology import Key
+from psd_tools.psd.descriptor import Descriptor, UnitFloat
+from psd_tools.terminology import Key, Unit
 
 from ..utils import full_name
 
@@ -113,3 +113,29 @@ def test_paint_raises_value_error_on_a_gradient_missing_an_enum(
     mutate(desc)
     with pytest.raises(ValueError):
         paint.draw_gradient_fill(layer.bbox, psd.color_mode, desc)
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_a_fill_layer_over_the_budget_still_raises(force: bool) -> None:
+    psd = PSDImage.open(full_name("layers-minimal/pattern-fill.psd"))
+    layer = next(
+        x
+        for x in psd.descendants()
+        if x.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING) is not None
+    )
+    desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+    desc[Key.Scale] = UnitFloat(unit=Unit.Percent, value=1e7)
+    forged = _reopened(psd)
+    forged_layer = next(x for x in forged.descendants() if x.name == layer.name)
+    with pytest.raises(ValueError, match="over the"):
+        forged_layer.composite(force=force)
+
+
+def test_a_stroke_gradient_scaled_to_zero_raises_only_value_error() -> None:
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = next(x for x in psd if x.name == "Shape 1")
+    assert layer.stroke is not None
+    layer.stroke._data[b"strokeStyleContent"][Key.Scale].value = 0.0
+    forged = _reopened(psd)
+    with pytest.raises(ValueError):
+        forged.composite(ignore_preview=True, force=True)

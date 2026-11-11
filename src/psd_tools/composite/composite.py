@@ -97,6 +97,18 @@ _UNREADABLE = (
 )
 
 
+# A fill's own budget error is a ``ValueError`` too and must still raise, so
+# unlike ``_UNREADABLE`` this names only the faults of a malformed descriptor.
+_UNREADABLE_FILL = (
+    AttributeError,
+    KeyError,
+    OverflowError,
+    TypeError,
+    ZeroDivisionError,
+    paint.UnreadableDescriptor,
+)
+
+
 def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
     """The layer's enabled effects of one kind, empty if they cannot be listed.
 
@@ -1840,7 +1852,7 @@ class Compositor:
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
             try:
                 fill_color, fill_shape = paint.create_fill(layer, layer.bbox)
-            except _UNREADABLE as error:
+            except _UNREADABLE_FILL as error:
                 # The stored pixels stand in; without a stored color the layer
                 # covers nothing, whatever shape it carries.
                 logger.debug("Cannot read the fill of %s: %s", layer, error)
@@ -2180,7 +2192,7 @@ class Compositor:
             color, _ = paint.create_fill_desc(
                 layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
             )
-        except (AttributeError, KeyError, TypeError) as error:
+        except _UNREADABLE_FILL as error:
             raise ValueError("Unreadable stroke fill descriptor") from error
         if color is None:
             raise ValueError(

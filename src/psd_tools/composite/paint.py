@@ -30,6 +30,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+class UnreadableDescriptor(ValueError):
+    """A fill descriptor that cannot be read, as opposed to one over budget."""
+
+
 # How many times its own area a pattern panel may be scaled up to, past the
 # floor check_growth() allows.
 _SCALE_GROWTH = 100
@@ -227,7 +232,7 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     if not color_desc:
         raise ValueError(f"Could not find a color descriptor {desc}")
     if (read := _COLOR_FUNC.get(color_desc.classID)) is None:
-        raise ValueError(f"Unknown color class {color_desc.classID!r}")
+        raise UnreadableDescriptor(f"Unknown color class {color_desc.classID!r}")
     return read(color_mode, color_desc)
 
 
@@ -522,7 +527,7 @@ def _enum_of(desc: Descriptor, key: bytes) -> bytes:
     """The enum value under *key*, or ``ValueError`` if it is absent or not an enum."""
     value = desc.get(key)
     if not hasattr(value, "enum"):
-        raise ValueError(f"Missing enum {key!r} in {desc.classID!r}")
+        raise UnreadableDescriptor(f"Missing enum {key!r} in {desc.classID!r}")
     return value.enum
 
 
