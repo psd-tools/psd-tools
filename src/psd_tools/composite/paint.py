@@ -226,7 +226,9 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     color_desc = desc.get(Key.Color)
     if not color_desc:
         raise ValueError(f"Could not find a color descriptor {desc}")
-    return _COLOR_FUNC[color_desc.classID](color_mode, color_desc)
+    if (read := _COLOR_FUNC.get(color_desc.classID)) is None:
+        raise ValueError(f"Unknown color class {color_desc.classID!r}")
+    return read(color_mode, color_desc)
 
 
 def create_fill_desc(
@@ -449,7 +451,7 @@ def draw_gradient_fill(
         _ramp_axis(viewport[1] - box[1], height, box_height, scale),
     )
 
-    gradient_kind = desc.get(Key.Type).enum
+    gradient_kind = _enum_of(desc, Key.Type)
     if gradient_kind == Enum.Linear:
         Z = _make_linear_gradient(X, Y, angle)
     elif gradient_kind == Enum.Radial:
@@ -516,10 +518,18 @@ def _make_diamond_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.nda
     return Z
 
 
+def _enum_of(desc: Descriptor, key: bytes) -> bytes:
+    """The enum value under *key*, or ``ValueError`` if it is absent or not an enum."""
+    value = desc.get(key)
+    if not hasattr(value, "enum"):
+        raise ValueError(f"Missing enum {key!r} in {desc.classID!r}")
+    return value.enum
+
+
 def _make_gradient_color(
     color_mode: ColorMode, grad: Descriptor
 ) -> tuple[Any | None, Any | None]:
-    gradient_form = grad.get(Type.GradientForm).enum
+    gradient_form = _enum_of(grad, Type.GradientForm)
     if gradient_form == Enum.ColorNoise:
         return _make_noise_gradient_color(color_mode, grad)
     elif gradient_form == Enum.CustomStops:

@@ -4,6 +4,10 @@ Changelog
 1.26.1 (unreleased)
 -------------------
 
+- [fix] Compositing a file whose solid-color, gradient or vector-stroke fill
+  descriptor is malformed no longer raises ``KeyError``, ``AttributeError`` or
+  ``TypeError``. A layer fill that cannot be read is dropped, leaving any stored
+  pixels; a stroke fill raises ``ValueError``
 - [fix] A Brightness/Contrast layer saved with *Use Legacy* reads as
   ``BrightnessContrast`` instead of an empty ``PixelLayer``, and composites with
   Photoshop's legacy formula instead of being skipped. The low-level ``brit``

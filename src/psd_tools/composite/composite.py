@@ -1838,9 +1838,19 @@ class Compositor:
             numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
         shape = layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
-            color, shape = paint.create_fill(layer, layer.bbox)
-            if shape is None:
-                shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
+            try:
+                fill_color, fill_shape = paint.create_fill(layer, layer.bbox)
+            except _UNREADABLE as error:
+                # The stored pixels stand in; without a stored color the layer
+                # covers nothing, whatever shape it carries.
+                logger.debug("Cannot read the fill of %s: %s", layer, error)
+                if color is None:
+                    shape = None
+            else:
+                color = fill_color
+                shape = fill_shape
+                if shape is None:
+                    shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
         return color, shape
 
     @staticmethod
@@ -2166,9 +2176,12 @@ class Compositor:
                 ),
                 warn=False,
             )
-        color, _ = paint.create_fill_desc(
-            layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
-        )
+        try:
+            color, _ = paint.create_fill_desc(
+                layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
+            )
+        except (AttributeError, KeyError, TypeError) as error:
+            raise ValueError("Unreadable stroke fill descriptor") from error
         if color is None:
             raise ValueError(
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
