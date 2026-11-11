@@ -30,6 +30,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+class UnreadableDescriptor(ValueError):
+    """A fill descriptor that cannot be read, as opposed to one over budget."""
+
+
 # How many times its own area a pattern panel may be scaled up to, past the
 # floor check_growth() allows.
 _SCALE_GROWTH = 100
@@ -225,8 +230,10 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     }
     color_desc = desc.get(Key.Color)
     if not color_desc:
-        raise ValueError(f"Could not find a color descriptor {desc}")
-    return _COLOR_FUNC[color_desc.classID](color_mode, color_desc)
+        raise UnreadableDescriptor(f"Could not find a color descriptor {desc}")
+    if (read := _COLOR_FUNC.get(color_desc.classID)) is None:
+        raise UnreadableDescriptor(f"Unknown color class {color_desc.classID!r}")
+    return read(color_mode, color_desc)
 
 
 def create_fill_desc(
@@ -362,7 +369,7 @@ def draw_pattern_fill(
                 max(1, int(panel.shape[1] * scale)),
             )
         except OverflowError as error:
-            raise ValueError("Pattern scale is not finite.") from error
+            raise UnreadableDescriptor("Pattern scale is not finite.") from error
         check_growth(
             new_shape[0] * new_shape[1],
             panel.shape[0] * panel.shape[1],
@@ -449,7 +456,7 @@ def draw_gradient_fill(
         _ramp_axis(viewport[1] - box[1], height, box_height, scale),
     )
 
-    gradient_kind = desc.get(Key.Type).enum
+    gradient_kind = _enum_of(desc, Key.Type)
     if gradient_kind == Enum.Linear:
         Z = _make_linear_gradient(X, Y, angle)
     elif gradient_kind == Enum.Radial:
@@ -516,10 +523,18 @@ def _make_diamond_gradient(X: np.ndarray, Y: np.ndarray, angle: float) -> np.nda
     return Z
 
 
+def _enum_of(desc: Descriptor, key: bytes) -> bytes:
+    """The enum value under *key*, or ``ValueError`` if it is absent or not an enum."""
+    value = desc.get(key)
+    if not hasattr(value, "enum"):
+        raise UnreadableDescriptor(f"Missing enum {key!r} in {desc.classID!r}")
+    return value.enum
+
+
 def _make_gradient_color(
     color_mode: ColorMode, grad: Descriptor
 ) -> tuple[Any | None, Any | None]:
-    gradient_form = grad.get(Type.GradientForm).enum
+    gradient_form = _enum_of(grad, Type.GradientForm)
     if gradient_form == Enum.ColorNoise:
         return _make_noise_gradient_color(color_mode, grad)
     elif gradient_form == Enum.CustomStops:
@@ -548,7 +563,7 @@ def _collect_stops(
         X.append(location)
         Y.append(value)
     if not X:
-        raise ValueError("Gradient has no stops.")
+        raise UnreadableDescriptor("Gradient has no stops.")
     if len(X) == 1:
         X = [0.0, 1.0]
         Y = [Y[0], Y[0]]

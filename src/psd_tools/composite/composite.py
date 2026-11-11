@@ -97,6 +97,18 @@ _UNREADABLE = (
 )
 
 
+# A fill's own budget error is a ``ValueError`` too and must still raise, so
+# unlike ``_UNREADABLE`` this names only the faults of a malformed descriptor.
+_UNREADABLE_FILL = (
+    AttributeError,
+    KeyError,
+    OverflowError,
+    TypeError,
+    ZeroDivisionError,
+    paint.UnreadableDescriptor,
+)
+
+
 def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
     """The layer's enabled effects of one kind, empty if they cannot be listed.
 
@@ -1838,9 +1850,24 @@ class Compositor:
             numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
         shape = layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
-            color, shape = paint.create_fill(layer, layer.bbox)
-            if shape is None:
-                shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
+            fill_color: np.ndarray | None = None
+            fill_shape: np.ndarray | None = None
+            try:
+                fill_color, fill_shape = paint.create_fill(layer, layer.bbox)
+                unreadable = fill_color is None and utils.has_unparsed_fill(layer)
+            except _UNREADABLE_FILL as error:
+                logger.debug("Cannot read the fill of %s: %s", layer, error)
+                unreadable = True
+            if unreadable:
+                # The stored pixels stand in; without a stored color the layer
+                # covers nothing, whatever shape it carries.
+                if color is None:
+                    shape = None
+            else:
+                color = fill_color
+                shape = fill_shape
+                if shape is None:
+                    shape = np.ones((layer.height, layer.width, 1), dtype=np.float32)
         return color, shape
 
     @staticmethod
@@ -1927,10 +1954,17 @@ class Compositor:
         alpha = shape * 1.0  # Constant factor is always 1.
         fill_off = utils.is_fill_disabled(layer)
 
+        path = None
+        stroke_source = None
         if self._has_redrawn_stroke(layer):
-            assert layer.stroke is not None
             path = None if fill_off else vector.draw_vector_mask(layer, self._viewport)
-            color_s, shape_s, alpha_s = self._get_stroke(layer, path)
+            try:
+                stroke_source = self._get_stroke(layer, path)
+            except paint.UnreadableDescriptor as error:
+                logger.debug("Cannot read the stroke of %s: %s", layer, error)
+        if stroke_source is not None:
+            assert layer.stroke is not None
+            color_s, shape_s, alpha_s = stroke_source
             # An inner stroke stays inside the path, so with the fill off the
             # path's own coverage is the bound.
             inner = layer.stroke.line_alignment is StrokeAlignment.INNER
@@ -2161,14 +2195,20 @@ class Compositor:
                 * (fill_bbox[3] - fill_bbox[1])
                 * (
                     paint.GRADIENT_FILL_BYTES
-                    if desc.get("strokeStyleContent").classID == b"gradientLayer"
+                    if getattr(desc.get("strokeStyleContent"), "classID", None)
+                    == b"gradientLayer"
                     else self.channels * 4
                 ),
                 warn=False,
             )
-        color, _ = paint.create_fill_desc(
-            layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
-        )
+        try:
+            color, _ = paint.create_fill_desc(
+                layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
+            )
+        except _UNREADABLE_FILL as error:
+            raise paint.UnreadableDescriptor(
+                "Unreadable stroke fill descriptor"
+            ) from error
         if color is None:
             raise ValueError(
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
