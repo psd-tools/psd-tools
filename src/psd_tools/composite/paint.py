@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class UnreadableDescriptor(ValueError):
+class _UnreadableDescriptor(ValueError):
     """A fill descriptor that cannot be read, as opposed to one over budget."""
 
 
@@ -230,9 +230,9 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     }
     color_desc = desc.get(Key.Color)
     if not color_desc:
-        raise UnreadableDescriptor(f"Could not find a color descriptor {desc}")
+        raise _UnreadableDescriptor(f"Could not find a color descriptor {desc}")
     if (read := _COLOR_FUNC.get(color_desc.classID)) is None:
-        raise UnreadableDescriptor(f"Unknown color class {color_desc.classID!r}")
+        raise _UnreadableDescriptor(f"Unknown color class {color_desc.classID!r}")
     return read(color_mode, color_desc)
 
 
@@ -369,7 +369,7 @@ def draw_pattern_fill(
                 max(1, int(panel.shape[1] * scale)),
             )
         except OverflowError as error:
-            raise UnreadableDescriptor("Pattern scale is not finite.") from error
+            raise _UnreadableDescriptor("Pattern scale is not finite.") from error
         check_growth(
             new_shape[0] * new_shape[1],
             panel.shape[0] * panel.shape[1],
@@ -527,7 +527,7 @@ def _enum_of(desc: Descriptor, key: bytes) -> bytes:
     """The enum value under *key*, or ``ValueError`` if it is absent or not an enum."""
     value = desc.get(key)
     if not hasattr(value, "enum"):
-        raise UnreadableDescriptor(f"Missing enum {key!r} in {desc.classID!r}")
+        raise _UnreadableDescriptor(f"Missing enum {key!r} in {desc.classID!r}")
     return value.enum
 
 
@@ -563,7 +563,7 @@ def _collect_stops(
         X.append(location)
         Y.append(value)
     if not X:
-        raise UnreadableDescriptor("Gradient has no stops.")
+        raise _UnreadableDescriptor("Gradient has no stops.")
     if len(X) == 1:
         X = [0.0, 1.0]
         Y = [Y[0], Y[0]]
