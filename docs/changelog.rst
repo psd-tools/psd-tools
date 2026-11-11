@@ -1,6 +1,12 @@
 Changelog
 =========
 
+1.26.2 (unreleased)
+-------------------
+
+- [fix] Composite a simple Normal clipped pixel layer above its base's Color
+  Overlay when interior effects are grouped but clipped layers are not (#1055)
+
 1.26.1 (2026-11-11)
 -------------------
 

@@ -4,6 +4,7 @@ The repository's MIT LICENSE applies to these self-authored fixtures.
 """
 
 import copy
+import weakref
 from typing import Literal
 
 import numpy as np
@@ -15,6 +16,7 @@ pytest.importorskip("scipy")
 
 from psd_tools.api.layers import Group, PixelLayer
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.composite.composite import _clips_after_color_overlay
 from psd_tools.constants import BlendMode, Tag
 from psd_tools.psd.descriptor import Bool, Descriptor, Double, Enumerated, List
 from psd_tools.terminology import Enum, Key
@@ -81,6 +83,27 @@ def test_disabled_effects(psd: PSDImage, force: bool, master: bool) -> None:
         b"masterFXSwitch" if master else Key.Enabled
     ] = Bool(False)
     np.testing.assert_array_equal(render(psd, force), expected)
+
+
+def test_disabled_overlay_skips_shape_scan(
+    psd: PSDImage, force: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del force
+    data = psd[0].tagged_blocks.get_data(Tag.OBJECT_BASED_EFFECTS_LAYER_INFO)
+    data[b"SoFi"][Key.Enabled] = Bool(False)
+    calls: list[PixelLayer] = []
+    original = PixelLayer.numpy
+
+    def tracked_numpy(
+        layer: PixelLayer, channel: str | None = None, real_mask: bool = True
+    ) -> np.ndarray | None:
+        if channel == "shape":
+            calls.append(layer)
+        return original(layer, channel, real_mask)
+
+    monkeypatch.setattr(PixelLayer, "numpy", tracked_numpy)
+    assert not _clips_after_color_overlay(psd[0], psd[0].clip_layers)
+    assert calls == []
 
 
 @pytest.mark.parametrize("index", [0, 1])
@@ -239,3 +262,52 @@ def test_filter_and_hidden_clip(psd: PSDImage, force: bool) -> None:
     )
     assert image is not None
     np.testing.assert_array_equal(image.convert("RGBA"), expected)
+
+
+@pytest.mark.parametrize("ignored_by", ["visibility", "filter", "viewport"])
+def test_ignored_incompatible_clip(psd: PSDImage, force: bool, ignored_by: str) -> None:
+    expected = render(psd, force)
+    offset = 64 if ignored_by == "viewport" else 8
+    ignored = PixelLayer.frompil(
+        Image.new("RGB", (48, 48), "blue"), psd, left=offset, top=offset
+    )
+    ignored.clipping = True
+    ignored.opacity = 128
+    if ignored_by == "visibility":
+        ignored.visible = False
+
+    if ignored_by == "filter":
+        image = psd.composite(
+            ignore_preview=True,
+            force=force,
+            apply_icc=False,
+            layer_filter=lambda layer: layer is not ignored,
+        )
+        assert image is not None
+        actual = np.asarray(image.convert("RGBA"))
+    else:
+        actual = render(psd, force)
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_shape_scan_releases_each_array(
+    psd: PSDImage, force: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del force
+    shapes: list[weakref.ReferenceType[np.ndarray]] = []
+    retained: list[bool] = []
+    original = PixelLayer.numpy
+
+    def tracked_numpy(
+        layer: PixelLayer, channel: str | None = None, real_mask: bool = True
+    ) -> np.ndarray | None:
+        if channel == "shape" and shapes:
+            retained.append(shapes[-1]() is not None)
+        result = original(layer, channel, real_mask)
+        if channel == "shape" and result is not None:
+            shapes.append(weakref.ref(result))
+        return result
+
+    monkeypatch.setattr(PixelLayer, "numpy", tracked_numpy)
+    assert _clips_after_color_overlay(psd[0], psd[0].clip_layers)
+    assert retained == [False]
