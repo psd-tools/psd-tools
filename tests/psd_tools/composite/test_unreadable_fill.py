@@ -23,12 +23,20 @@ def _unknown_color_class(desc: Descriptor) -> None:
     desc[Key.Color].classID = b"XXXX"
 
 
+def _missing_color(desc: Descriptor) -> None:
+    del desc[Key.Color]
+
+
 def _missing_color_component(desc: Descriptor) -> None:
     del desc[Key.Color][Key.Green]
 
 
 def _missing_gradient_type(desc: Descriptor) -> None:
     del desc[Key.Type]
+
+
+def _no_gradient_stops(desc: Descriptor) -> None:
+    del desc[Key.Gradient][Key.Colors][:]
 
 
 def _missing_gradient_form(desc: Descriptor) -> None:
@@ -53,8 +61,10 @@ def _forged(layer_name: str, tag: Tag, mutate: Mutation) -> PSDImage:
 FORGED = [
     ("Color Fill 1", Tag.SOLID_COLOR_SHEET_SETTING, _unknown_color_class),
     ("Color Fill 1", Tag.SOLID_COLOR_SHEET_SETTING, _missing_color_component),
+    ("Color Fill 1", Tag.SOLID_COLOR_SHEET_SETTING, _missing_color),
     ("Polygon 2", Tag.GRADIENT_FILL_SETTING, _missing_gradient_type),
     ("Polygon 2", Tag.GRADIENT_FILL_SETTING, _missing_gradient_form),
+    ("Polygon 2", Tag.GRADIENT_FILL_SETTING, _no_gradient_stops),
 ]
 
 
@@ -103,6 +113,7 @@ STROKED = [
     ("Shape 1", _missing_gradient_type),
     ("Shape 1", _gradient_scaled_to_zero),
     ("Rectangle 1", _missing_color_component_in_stroke),
+    ("Rectangle 1", _missing_color),
 ]
 
 

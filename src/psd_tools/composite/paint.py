@@ -230,7 +230,7 @@ def _get_color(color_mode: ColorMode, desc: Descriptor) -> tuple[float, ...]:
     }
     color_desc = desc.get(Key.Color)
     if not color_desc:
-        raise ValueError(f"Could not find a color descriptor {desc}")
+        raise UnreadableDescriptor(f"Could not find a color descriptor {desc}")
     if (read := _COLOR_FUNC.get(color_desc.classID)) is None:
         raise UnreadableDescriptor(f"Unknown color class {color_desc.classID!r}")
     return read(color_mode, color_desc)
@@ -369,7 +369,7 @@ def draw_pattern_fill(
                 max(1, int(panel.shape[1] * scale)),
             )
         except OverflowError as error:
-            raise ValueError("Pattern scale is not finite.") from error
+            raise UnreadableDescriptor("Pattern scale is not finite.") from error
         check_growth(
             new_shape[0] * new_shape[1],
             panel.shape[0] * panel.shape[1],
@@ -563,7 +563,7 @@ def _collect_stops(
         X.append(location)
         Y.append(value)
     if not X:
-        raise ValueError("Gradient has no stops.")
+        raise UnreadableDescriptor("Gradient has no stops.")
     if len(X) == 1:
         X = [0.0, 1.0]
         Y = [Y[0], Y[0]]
