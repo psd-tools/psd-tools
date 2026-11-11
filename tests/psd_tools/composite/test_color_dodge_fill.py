@@ -2,6 +2,7 @@
 
 # Copyright (c) 2026 PSD fixture contributors. MIT terms: repository LICENSE.
 
+import io
 from pathlib import Path
 from typing import TypedDict
 
@@ -12,7 +13,8 @@ from PIL import Image
 from psd_tools.api.layers import PixelLayer
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite
-from psd_tools.constants import BlendMode, Tag
+from psd_tools.constants import BlendMode, ChannelID, Tag
+from psd_tools.psd.layer_and_mask import LayerBlendingRanges
 
 from ..utils import full_name
 
@@ -168,3 +170,31 @@ def test_synthetic_roundtrip(tmp_path: Path) -> None:
     before = doc.composite(ignore_preview=True)
     after = loaded.composite(ignore_preview=True)
     np.testing.assert_array_equal(before, after)
+
+
+def test_empty_blending_ranges_use_color_dodge_fill() -> None:
+    doc = make_document()
+    expected = doc.composite(ignore_preview=True, apply_icc=False)
+    doc[-1]._record.blending_ranges = LayerBlendingRanges.read(
+        io.BytesIO(b"\x00\x00\x00\x00")
+    )
+    actual = doc.composite(ignore_preview=True, apply_icc=False)
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_clipping_base_without_transparency_uses_color_dodge_fill() -> None:
+    doc = make_document(clipped=True)
+    expected = doc.composite(ignore_preview=True, apply_icc=False)
+    base = doc[0]
+    channels = [
+        (info, data)
+        for info, data in zip(base._record.channel_info, base._channels, strict=True)
+        if info.id != ChannelID.TRANSPARENCY_MASK
+    ]
+    base._record.channel_info = type(base._record.channel_info)(
+        info for info, _ in channels
+    )
+    base._channels = type(base._channels)(data for _, data in channels)
+    assert base.numpy("shape") is None
+    actual = doc.composite(ignore_preview=True, apply_icc=False)
+    np.testing.assert_array_equal(actual, expected)

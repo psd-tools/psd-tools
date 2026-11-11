@@ -1,6 +1,11 @@
 Changelog
 =========
 
+1.26.2 (unreleased)
+-------------------
+- [fix] Color Dodge respects Fill and Transparency Shapes Layer on RGB8 pixel
+  layers, including pixel masks and opacity (#1056)
+
 1.26.1 (2026-11-11)
 -------------------
 
@@ -642,7 +647,7 @@ Changelog
   :py:func:`psd_tools.composite.composite` to keep them. Also removes the
   ``Image.fromarray()`` spelling Pillow removes in 13 (#729)
 - [fix] Correct pass-through group compositing when the group opacity is below
-  255. The group's contribution was blended against the backdrop twice, so the
+  1.   The group's contribution was blended against the backdrop twice, so the
   output varied with nesting depth (#703, #706)
 - [fix] Detect the real user mask header from the channel list rather than by
   record length alone, so ``user_mask_density``, ``user_mask_feather``,

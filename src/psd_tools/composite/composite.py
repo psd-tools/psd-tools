@@ -1028,7 +1028,7 @@ def _color_dodge_factor(layer: Layer, alpha: np.ndarray) -> float | np.ndarray |
     ranges = layer._record.blending_ranges
     if any(
         channel and any(value != (0, 65535) for value in channel)
-        for channel in [ranges.composite_ranges, *ranges.channel_ranges]
+        for channel in [ranges.composite_ranges, *(ranges.channel_ranges or ())]
     ):
         return None
     if layer.clipping:
@@ -1044,7 +1044,7 @@ def _color_dodge_factor(layer: Layer, alpha: np.ndarray) -> float | np.ndarray |
         # Clipping colors on a partially transparent base are not reconstructed
         # correctly; its later mask and opacity are separate from this channel.
         base_shape = base.numpy("shape")
-        if base_shape is None or not np.all((base_shape == 0) | (base_shape == 1)):
+        if base_shape is not None and not np.all((base_shape == 0) | (base_shape == 1)):
             return None
     fill = layer.fill_opacity / 255.0
     if layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0:
