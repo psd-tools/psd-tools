@@ -4,6 +4,8 @@ Changelog
 1.26.1 (unreleased)
 -------------------
 
+- [fix] Clipped layers no longer over-attenuate the color of partially
+  transparent pixel and group bases (#1057)
 - [fix] Compositing a file whose solid-color, gradient or vector-stroke fill
   descriptor is malformed no longer raises ``KeyError``, ``AttributeError`` or
   ``TypeError``. A layer fill that cannot be read is dropped, leaving any stored
@@ -646,7 +648,7 @@ Changelog
   :py:func:`psd_tools.composite.composite` to keep them. Also removes the
   ``Image.fromarray()`` spelling Pillow removes in 13 (#729)
 - [fix] Correct pass-through group compositing when the group opacity is below
-  255. The group's contribution was blended against the backdrop twice, so the
+  1.   The group's contribution was blended against the backdrop twice, so the
   output varied with nesting depth (#703, #706)
 - [fix] Detect the real user mask header from the channel list rather than by
   record length alone, so ``user_mask_density``, ``user_mask_feather``,

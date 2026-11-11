@@ -1372,7 +1372,8 @@ class Compositor:
             color, shape, alpha, stroke = self._get_object(layer)
 
         if layer.has_clip_layers():
-            color = self._apply_clip_layers(layer, color, alpha)
+            # Clips change straight color; the base's coverage is applied below.
+            color = self._apply_clip_layers(layer, color, np.ones_like(alpha))
 
         shape_mask = self._get_mask(layer)
         fill_opacity, opacity = self._get_const(layer)
