@@ -2190,7 +2190,8 @@ class Compositor:
                 * (fill_bbox[3] - fill_bbox[1])
                 * (
                     paint.GRADIENT_FILL_BYTES
-                    if desc.get("strokeStyleContent").classID == b"gradientLayer"
+                    if getattr(desc.get("strokeStyleContent"), "classID", None)
+                    == b"gradientLayer"
                     else self.channels * 4
                 ),
                 warn=False,

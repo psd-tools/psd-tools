@@ -152,3 +152,9 @@ def test_a_fill_layer_over_the_budget_still_raises(force: bool) -> None:
     forged_layer = next(x for x in forged.descendants() if x.name == layer.name)
     with pytest.raises(ValueError, match="over the"):
         forged_layer.composite(force=force)
+
+
+def test_a_stroke_without_content_is_dropped() -> None:
+    forged = _stroke_render("Shape 1", lambda data: data.pop(b"strokeStyleContent"))
+    strokeless = _stroke_render("Shape 1", _disabled)
+    assert np.array_equal(forged, strokeless)
