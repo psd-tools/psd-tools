@@ -74,24 +74,47 @@ def test_a_layer_whose_fill_is_unreadable_draws_nothing(
     assert psd.composite(ignore_preview=True, force=force) is not None
 
 
-def test_a_stroke_whose_fill_is_unreadable_raises_only_value_error() -> None:
+def _stroke_render(layer_name: str, edit: Mutation) -> np.ndarray:
+    """The ``stroke.psd`` render after *edit* is applied to the layer's stroke."""
     psd = PSDImage.open(full_name("stroke.psd"))
-    layer = next(x for x in psd if x.name == "Shape 1")
+    layer = next(x for x in psd if x.name == layer_name)
     assert layer.stroke is not None
-    del layer.stroke._data[b"strokeStyleContent"][Key.Type]
-    forged = _reopened(psd)
-    with pytest.raises(ValueError):
-        forged.composite(ignore_preview=True, force=True)
+    edit(layer.stroke._data)
+    return np.asarray(_reopened(psd).composite(ignore_preview=True, force=True))
 
 
-def test_a_stroke_color_missing_a_component_raises_only_value_error() -> None:
-    psd = PSDImage.open(full_name("stroke.psd"))
-    layer = next(x for x in psd if x.name == "Rectangle 1")
-    assert layer.stroke is not None
-    del layer.stroke._data[b"strokeStyleContent"][Key.Color][Key.Green]
-    forged = _reopened(psd)
-    with pytest.raises(ValueError):
-        forged.composite(ignore_preview=True, force=True)
+def _content(mutate: Mutation) -> Mutation:
+    return lambda data: mutate(data[b"strokeStyleContent"])
+
+
+def _disabled(data: Descriptor) -> None:
+    data[b"strokeEnabled"].value = False
+
+
+def _missing_color_component_in_stroke(desc: Descriptor) -> None:
+    del desc[Key.Color][Key.Green]
+
+
+def _gradient_scaled_to_zero(desc: Descriptor) -> None:
+    desc[Key.Scale].value = 0.0
+
+
+STROKED = [
+    ("Shape 1", _missing_gradient_type),
+    ("Shape 1", _gradient_scaled_to_zero),
+    ("Rectangle 1", _missing_color_component_in_stroke),
+]
+
+
+@pytest.mark.parametrize(("layer_name", "mutate"), STROKED)
+def test_a_stroke_whose_fill_is_unreadable_is_dropped(
+    layer_name: str, mutate: Mutation
+) -> None:
+    intact = _stroke_render(layer_name, lambda data: None)
+    forged = _stroke_render(layer_name, _content(mutate))
+    strokeless = _stroke_render(layer_name, _disabled)
+    assert not np.array_equal(intact, strokeless)
+    assert np.array_equal(forged, strokeless)
 
 
 def test_paint_raises_value_error_on_an_unknown_color_class() -> None:
@@ -129,13 +152,3 @@ def test_a_fill_layer_over_the_budget_still_raises(force: bool) -> None:
     forged_layer = next(x for x in forged.descendants() if x.name == layer.name)
     with pytest.raises(ValueError, match="over the"):
         forged_layer.composite(force=force)
-
-
-def test_a_stroke_gradient_scaled_to_zero_raises_only_value_error() -> None:
-    psd = PSDImage.open(full_name("stroke.psd"))
-    layer = next(x for x in psd if x.name == "Shape 1")
-    assert layer.stroke is not None
-    layer.stroke._data[b"strokeStyleContent"][Key.Scale].value = 0.0
-    forged = _reopened(psd)
-    with pytest.raises(ValueError):
-        forged.composite(ignore_preview=True, force=True)

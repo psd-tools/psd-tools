@@ -1949,10 +1949,17 @@ class Compositor:
         alpha = shape * 1.0  # Constant factor is always 1.
         fill_off = utils.is_fill_disabled(layer)
 
+        path = None
+        stroke_source = None
         if self._has_redrawn_stroke(layer):
-            assert layer.stroke is not None
             path = None if fill_off else vector.draw_vector_mask(layer, self._viewport)
-            color_s, shape_s, alpha_s = self._get_stroke(layer, path)
+            try:
+                stroke_source = self._get_stroke(layer, path)
+            except paint.UnreadableDescriptor as error:
+                logger.debug("Cannot read the stroke of %s: %s", layer, error)
+        if stroke_source is not None:
+            assert layer.stroke is not None
+            color_s, shape_s, alpha_s = stroke_source
             # An inner stroke stays inside the path, so with the fill off the
             # path's own coverage is the bound.
             inner = layer.stroke.line_alignment is StrokeAlignment.INNER
@@ -2193,7 +2200,9 @@ class Compositor:
                 layer, desc.get("strokeStyleContent"), fill_bbox, _path_bbox(layer)
             )
         except _UNREADABLE_FILL as error:
-            raise ValueError("Unreadable stroke fill descriptor") from error
+            raise paint.UnreadableDescriptor(
+                "Unreadable stroke fill descriptor"
+            ) from error
         if color is None:
             raise ValueError(
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
