@@ -169,3 +169,16 @@ def test_a_stroke_without_content_is_dropped() -> None:
     forged = _stroke_render("Shape 1", lambda data: data.pop(b"strokeStyleContent"))
     strokeless = _stroke_render("Shape 1", _disabled)
     assert np.array_equal(forged, strokeless)
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_a_layer_whose_fill_block_does_not_parse_draws_nothing(force: bool) -> None:
+    psd = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Color Fill 1")
+    layer._record.tagged_blocks[Tag.SOLID_COLOR_SHEET_SETTING].data = b"\x00\x01junk"
+    forged = _reopened(psd)
+    forged_layer = next(x for x in forged.descendants() if x.name == layer.name)
+    assert forged_layer.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING) is None
+    drawn = forged_layer.composite(force=force)
+    assert drawn is not None
+    assert not np.asarray(drawn.getchannel("A")).any()

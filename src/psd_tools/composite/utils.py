@@ -89,6 +89,20 @@ def has_fill(layer: Layer) -> bool:
     return any(tag in layer.tagged_blocks for tag in FILL_TAGS)
 
 
+def has_unparsed_fill(layer: Layer) -> bool:
+    """Check if a fill block is present but failed to parse, so it reads as missing."""
+    blocks = layer.tagged_blocks
+    return any(
+        tag in blocks and blocks.get_data(tag) is None
+        for tag in (
+            Tag.SOLID_COLOR_SHEET_SETTING,
+            Tag.PATTERN_FILL_SETTING,
+            Tag.GRADIENT_FILL_SETTING,
+            Tag.VECTOR_STROKE_CONTENT_DATA,
+        )
+    )
+
+
 @overload
 def union(backdrop: float, source: float) -> float: ...
 

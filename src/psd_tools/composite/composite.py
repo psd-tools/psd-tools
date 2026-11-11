@@ -1850,12 +1850,17 @@ class Compositor:
             numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
         shape = layer.numpy("shape")
         if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
+            fill_color: np.ndarray | None = None
+            fill_shape: np.ndarray | None = None
             try:
                 fill_color, fill_shape = paint.create_fill(layer, layer.bbox)
+                unreadable = fill_color is None and utils.has_unparsed_fill(layer)
             except _UNREADABLE_FILL as error:
+                logger.debug("Cannot read the fill of %s: %s", layer, error)
+                unreadable = True
+            if unreadable:
                 # The stored pixels stand in; without a stored color the layer
                 # covers nothing, whatever shape it carries.
-                logger.debug("Cannot read the fill of %s: %s", layer, error)
                 if color is None:
                     shape = None
             else:
