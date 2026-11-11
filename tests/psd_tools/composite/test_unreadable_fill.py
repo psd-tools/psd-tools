@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from psd_tools import PSDImage
+from psd_tools.composite import paint
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Descriptor
 from psd_tools.terminology import Key
@@ -81,3 +82,34 @@ def test_a_stroke_whose_fill_is_unreadable_raises_only_value_error() -> None:
     forged = _reopened(psd)
     with pytest.raises(ValueError):
         forged.composite(ignore_preview=True, force=True)
+
+
+def test_a_stroke_color_missing_a_component_raises_only_value_error() -> None:
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = next(x for x in psd if x.name == "Rectangle 1")
+    assert layer.stroke is not None
+    del layer.stroke._data[b"strokeStyleContent"][Key.Color][Key.Green]
+    forged = _reopened(psd)
+    with pytest.raises(ValueError):
+        forged.composite(ignore_preview=True, force=True)
+
+
+def test_paint_raises_value_error_on_an_unknown_color_class() -> None:
+    psd = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Color Fill 1")
+    desc = layer._record.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
+    _unknown_color_class(desc)
+    with pytest.raises(ValueError):
+        paint.draw_solid_color_fill(layer.bbox, psd.color_mode, desc)
+
+
+@pytest.mark.parametrize("mutate", [_missing_gradient_type, _missing_gradient_form])
+def test_paint_raises_value_error_on_a_gradient_missing_an_enum(
+    mutate: Mutation,
+) -> None:
+    psd = PSDImage.open(full_name("adjustment-fillers.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Polygon 2")
+    desc = layer._record.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING)
+    mutate(desc)
+    with pytest.raises(ValueError):
+        paint.draw_gradient_fill(layer.bbox, psd.color_mode, desc)
