@@ -1,21 +1,17 @@
 Changelog
 =========
 
-1.26.1 (unreleased)
+1.26.1 (2026-11-11)
 -------------------
 
-- [fix] Compositing a file whose solid-color, gradient or vector-stroke fill
-  descriptor is malformed no longer raises ``KeyError``, ``AttributeError`` or
-  ``TypeError``. A layer fill that cannot be read is dropped, leaving any stored
-  pixels, and a stroke whose fill cannot be read is not drawn (#1058)
+- [security] Compositing a file with a malformed solid-color, gradient or
+  vector-stroke fill descriptor no longer raises ``KeyError``, ``AttributeError``
+  or ``TypeError``. The unreadable fill is dropped instead (#1058)
 - [fix] A Brightness/Contrast layer saved with *Use Legacy* reads as
-  ``BrightnessContrast`` instead of an empty ``PixelLayer``, and composites with
-  Photoshop's legacy formula instead of being skipped. The low-level ``brit``
-  block reads its brightness and contrast as signed values (#1039)
-- [fix] Opening a PSD dominated by embedded smart-object payloads no longer peaks
-  at about three times the file size in memory; linked-layer blocks are parsed
-  from a bounded substream instead of a copy. A block whose parser leaves part
-  of its window unread now reads as raw bytes (#899, #1037)
+  ``BrightnessContrast`` and composites with Photoshop's legacy formula
+  instead of being an empty ``PixelLayer`` (#1039)
+- [fix] Opening a PSD dominated by smart-object payloads no longer peaks at
+  about three times the file size in memory (#899, #1037)
 
 1.26.0 (2026-10-21)
 -------------------
