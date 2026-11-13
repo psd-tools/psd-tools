@@ -240,3 +240,29 @@ def test_fractional_shape_bounds_on_large_document_are_excluded() -> None:
     doc._record.header.height = 10000
     _set_path_rows(layer, (48.5, 80), 10000)
     assert paint._vertical_overlay_geometry(layer, desc) is None
+
+
+@pytest.mark.parametrize(
+    "path,value",
+    [
+        ((b"Ofst",), Double(0)),
+        ((b"Grad", b"Intr"), Enumerated(enum=b"Smoo")),
+        ((b"Grad", b"Clrs", 0, b"Mdpn"), Enumerated(enum=b"Smoo")),
+    ],
+)
+def test_malformed_overlay_descriptor_falls_back(
+    path: tuple[bytes | int, ...], value: Double | Enumerated
+) -> None:
+    doc = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
+    layer = doc[0]
+    desc = next(iter(layer.effects)).descriptor
+    target = desc
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises((AttributeError, KeyError, TypeError, ValueError)):
+        paint._vertical_overlay_geometry(layer, desc)
+    before = paint.draw_gradient_fill(layer.bbox, doc.color_mode, desc)
+    after = paint.draw_gradient_overlay(layer, desc)
+    for a, b in zip(before, after, strict=True):
+        np.testing.assert_array_equal(a, b)

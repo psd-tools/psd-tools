@@ -498,7 +498,10 @@ def draw_gradient_overlay(
     layer: "Layer", desc: Descriptor
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     """Draw a gradient overlay without changing fill or stroke geometry."""
-    geometry = _vertical_overlay_geometry(layer, desc)
+    try:
+        geometry = _vertical_overlay_geometry(layer, desc)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        geometry = None
     if geometry is None:
         return draw_gradient_fill(layer.bbox, layer._psd.color_mode, desc)
     start, length, descending = geometry
