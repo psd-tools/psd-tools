@@ -130,7 +130,7 @@ def test_a_traced_shape_reads_its_interior_from_the_path_and_its_edge_from_pixel
     assert 0.0 < stored[middle] < 1.0
 
     whole = _canvas(psd)
-    source = whole._resolve_source(layer)
+    source = whole._resolve_source(layer, layer.clip_layers)
     shape = whole._path_interior(
         layer, whole._viewport, source.shape_mask, source.shape
     )
@@ -150,7 +150,10 @@ def test_a_traced_shape_reads_its_interior_from_the_path_and_its_edge_from_pixel
         np.zeros((y1 - y0, x1 - x0, 1), dtype=np.float32),
     )
     reread = narrow._trace_shape(
-        layer, layer.bbox, narrow._resolve_source(layer).shape, traces_mask=False
+        layer,
+        layer.bbox,
+        narrow._resolve_source(layer, layer.clip_layers).shape,
+        traces_mask=False,
     )
     assert np.array_equal(reread, traced)
 

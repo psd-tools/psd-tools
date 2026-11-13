@@ -9,8 +9,6 @@ These tests pin the primitives directly, so a change to the compositing maths
 fails with a specific, hand-checkable number. See #715.
 """
 
-from typing import Any, ClassVar, cast
-
 import numpy as np
 import pytest
 
@@ -410,12 +408,6 @@ def test_a_source_wider_than_the_canvas_is_rejected() -> None:
         compositor._apply_source(rgb(BLUE), gray(1.0), gray(1.0), BlendMode.NORMAL)
 
 
-class _ClipStub:
-    """The only attribute ``_apply_clip_layers`` reads off its layer."""
-
-    clip_layers: ClassVar[list] = []
-
-
 def test_clip_layers_sub_compositor_uses_the_document_width() -> None:
     """A grayscale layer in an RGB document seeds a clip sub-compositor.
 
@@ -423,8 +415,7 @@ def test_clip_layers_sub_compositor_uses_the_document_width() -> None:
     becomes another compositor's fixed-width canvas (#710).
     """
     compositor = Compositor((0, 0, 2, 2), rgb(WHITE), gray(0.0))
-    stub = cast(Any, _ClipStub())
-    result = compositor._apply_clip_layers(stub, gray(0.5), gray(1.0))
+    result = compositor._apply_clip_layers([], gray(0.5), gray(1.0))
     assert result.shape == (2, 2, 3)
     assert np.array_equal(result, rgb((0.5, 0.5, 0.5)))
 

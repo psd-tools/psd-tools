@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 
 from psd_tools.api import numpy_io, pil_io
+from psd_tools.api.effects import ColorOverlay
 from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
@@ -124,6 +125,51 @@ def _readable(layer: Layer, name: str) -> list[_StyledEffect]:
         # format; ``%`` would re-raise it out of the handler.
         logger.debug("Cannot list the %s effects of %s: %s", name, layer, error)
         return []
+
+
+def _clips_after_color_overlay(layer: Layer, clip_layers: Sequence[Layer]) -> bool:
+    """Whether clipping can follow a lone opaque Normal Color Overlay."""
+    if not clip_layers:
+        return False
+    try:
+        effects = layer.effects
+        enabled = [effect for effect in effects if effect.enabled]
+        if not (
+            effects.enabled
+            and len(enabled) == 1
+            and isinstance(enabled[0], ColorOverlay)
+            and enabled[0].blend_mode == BlendMode.NORMAL
+            and enabled[0].opacity == 100.0
+        ):
+            return False
+        if any(clip.has_effects() for clip in clip_layers):
+            return False
+        for item in (layer, *clip_layers):
+            ranges = item._record.blending_ranges
+            default_range = [(0, 65535), (0, 65535)]
+            if (
+                item.kind != "pixel"
+                or item.blend_mode != BlendMode.NORMAL
+                or item.opacity != 255
+                or item.fill_opacity != 255
+                or item.has_mask()
+                or item.has_vector_mask()
+                or Tag.CHANNEL_BLENDING_RESTRICTIONS_SETTING in item.tagged_blocks
+                or item.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0) != 0
+                or ranges.composite_ranges not in (None, [], default_range)
+                or any(r != default_range for r in ranges.channel_ranges or [])
+            ):
+                return False
+        for item in (layer, *clip_layers):
+            alpha = item.numpy("shape")
+            if alpha is not None:
+                opaque = np.min(alpha, initial=1.0) == 1.0
+                del alpha
+                if not opaque:
+                    return False
+        return True
+    except _UNREADABLE:
+        return False
 
 
 # How a one-channel array -- a canvas or a source -- becomes a given width.
@@ -496,6 +542,13 @@ def composite_pil(
     # a wrapped one. Note it does not make the cast total -- np.clip passes NaN
     # through -- so it is a narrowing of the damage, not a guarantee.
     pixels = np.clip(255 * color, 0, 255).astype(np.uint8)
+    if mode == "RGBA" and color_mode == ColorMode.RGB and psd_image.depth == 8:
+        # Float32 alpha unions can land just below 1; preserve the opaque
+        # endpoint without rounding RGB or genuine 8-bit transparency.
+        opaque = (alpha[:, :, 0] >= 1 - np.finfo(np.float32).eps) & (
+            alpha[:, :, 0] <= 1
+        )
+        pixels[:, :, 3][opaque] = 255
     if mode == "1":
         # `fromarray(uint8, "1")` does not mean "these bytes, as bilevel". PIL
         # takes the raw mode literally at one bit per pixel, so it consumes one
@@ -1004,6 +1057,44 @@ class _Source:
     # in: fill opacity fades the layer's own paint without narrowing the hole
     # it punches, which is what makes "fill 0 under a knockout" a hole at all.
     knockout_shape: np.ndarray
+    dodge_factor: float | np.ndarray | None = None
+
+
+def _color_dodge_factor(
+    layer: Layer,
+    alpha: np.ndarray,
+    has_accepted_clips: Callable[[], bool],
+    clip_base_is_binary: Callable[[], bool],
+) -> float | np.ndarray | None:
+    """The verified RGB8 pixel-layer Dodge factor, before masks and opacity."""
+    if not (
+        layer.blend_mode == BlendMode.COLOR_DODGE
+        and layer._psd.color_mode == ColorMode.RGB
+        and layer._psd.depth == 8
+        and layer.kind == "pixel"
+        and layer.fill_opacity > 0
+        and (
+            layer.fill_opacity < 255
+            or layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0
+        )
+        and not layer.has_vector_mask()
+        and not layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0)
+        and not layer.has_effects()
+        and not has_accepted_clips()
+    ):
+        return None
+    ranges = layer._record.blending_ranges
+    if any(
+        channel and any(value != (0, 65535) for value in channel)
+        for channel in [ranges.composite_ranges, *(ranges.channel_ranges or ())]
+    ):
+        return None
+    if layer.clipping and not clip_base_is_binary():
+        return None
+    fill = layer.fill_opacity / 255.0
+    if layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0:
+        return fill * alpha
+    return fill
 
 
 def _composites_as_passthrough(source: _Source, blend_mode: BlendMode) -> bool:
@@ -1237,8 +1328,11 @@ class Compositor:
         widen: _Widen = _widen,
         color_mode: ColorMode | None = None,
         cache: _PassCache | None = None,
+        clip_base: Layer | None = None,
     ):
         self._viewport = viewport
+        self._clip_base = clip_base
+        self._clip_base_binary: bool | None = None
         self._layer_filter = layer_filter
         self._force = force
         self._mask_repeats: dict[int, bool] = {}
@@ -1302,8 +1396,26 @@ class Compositor:
             self._apply_adjustment(layer)
             return
 
-        source = self._resolve_source(layer)
+        clip_layers = layer.clip_layers
+        clip_after_effects = (
+            layer.tagged_blocks.get_data(Tag.BLEND_INTERIOR_ELEMENTS) == 1
+            and layer.tagged_blocks.get_data(Tag.BLEND_CLIPPING_ELEMENTS) == 0
+        )
+        if clip_after_effects:
+            clip_layers = [clip for clip in clip_layers if self._accepts(clip, True)]
+            clip_after_effects = _clips_after_color_overlay(layer, clip_layers)
+        source = self._resolve_source(
+            layer, clip_layers, clip_after_effects=clip_after_effects
+        )
         source, outer = self._compose_effects(layer, source)
+        if clip_after_effects:
+            # The styled source already owns the base coverage; clip color only.
+            source = replace(
+                source,
+                color=self._apply_clip_layers(
+                    clip_layers, source.color, np.ones_like(source.alpha)
+                ),
+            )
         if outer and _composites_as_passthrough(source, layer.blend_mode):
             # A pass-through group is re-applied by interpolating this canvas
             # against the group's own result, which has no outer effect in it,
@@ -1356,7 +1468,13 @@ class Compositor:
         # A clipping layer is composited by its base, through _apply_clip_layers().
         return clip_compositing or not layer.clipping
 
-    def _resolve_source(self, layer: Layer) -> _Source:
+    def _resolve_source(
+        self,
+        layer: Layer,
+        clip_layers: Sequence[Layer],
+        *,
+        clip_after_effects: bool = False,
+    ) -> _Source:
         """Resolve a layer into the operands the blend equations take.
 
         Reads the layer -- group, object, clip layers, mask, opacity -- and
@@ -1371,9 +1489,22 @@ class Compositor:
         else:
             color, shape, alpha, stroke = self._get_object(layer)
 
-        if layer.has_clip_layers():
-            color = self._apply_clip_layers(layer, color, alpha)
+        if clip_layers and not clip_after_effects:
+            # Clips change straight color; the base's coverage is applied below.
+            color = self._apply_clip_layers(
+                clip_layers, color, np.ones_like(alpha), base=layer
+            )
 
+        try:
+            dodge_factor = _color_dodge_factor(
+                layer,
+                alpha,
+                lambda: any(self._accepts(clip, True) for clip in clip_layers),
+                self._clip_base_has_binary_shape,
+            )
+        except _UNREADABLE as error:
+            logger.debug("Cannot read the Color Dodge Fill of %s: %s", layer, error)
+            dodge_factor = None
         shape_mask = self._get_mask(layer)
         fill_opacity, opacity = self._get_const(layer)
         mask = shape_mask * opacity
@@ -1388,7 +1519,7 @@ class Compositor:
             alpha = np.minimum(alpha + stroke[1] * stroke_mask * opacity, 1.0)
 
         # TODO: Tag.BLEND_INTERIOR_ELEMENTS controls how inner effects apply,
-        # and is unread. There is a second thing riding on it now: the effect
+        # and is only read for clipping order. Another thing riding on it: the effect
         # canvas hands back one source, which ``_composite_source()`` applies
         # with the *layer's* blend mode, so an inner effect goes through that
         # mode too -- which is what "Blend Interior Effects as Group" asks
@@ -1407,7 +1538,25 @@ class Compositor:
             knockout=knockout,
             adjustment_isolated=adjustment_isolated,
             knockout_shape=shape,
+            dodge_factor=dodge_factor,
         )
+
+    def _clip_base_has_binary_shape(self) -> bool:
+        """Whether the clipping base's shape channel is only 0 or 1; memoized.
+
+        Clipping colors on a partially transparent base are not reconstructed
+        correctly; the base's later mask and opacity are separate from this channel.
+        """
+        if self._clip_base_binary is None:
+            base = self._clip_base
+            if base is None or not base.has_pixels():
+                self._clip_base_binary = False
+            else:
+                shape = base.numpy("shape")
+                self._clip_base_binary = shape is None or bool(
+                    np.all((shape == 0) | (shape == 1))
+                )
+        return self._clip_base_binary
 
     def _composite_source(self, source: _Source, blend_mode: BlendMode) -> None:
         """Composite a resolved source into this compositor's canvases."""
@@ -1432,6 +1581,7 @@ class Compositor:
             source.alpha * source.fill_opacity,
             blend_mode,
             source.knockout,
+            source.dodge_factor,
         )
 
     def _compose_effects(
@@ -1606,6 +1756,7 @@ class Compositor:
         alpha: np.ndarray,
         blend_mode: BlendMode,
         knockout: Knockout = Knockout.NONE,
+        dodge_factor: float | np.ndarray | None = None,
     ) -> None:
         color = self._fit_source(color)
         knockout_color, knockout_alpha = self._knockout_backdrop(knockout)
@@ -1624,8 +1775,20 @@ class Compositor:
         color_b = knockout_color if knockout else self._color
 
         blend_fn = get_blend_func(blend_mode, self._color_mode)
+        if dodge_factor is not None:
+            blended = blend_fn(color_b, color * dodge_factor)
+            # Coverage already contains Fill (and intrinsic alpha). Undo only
+            # the overlap color delta's scaling, not the ordinary alpha union.
+            blended = color_b + np.divide(
+                blended - color_b,
+                dodge_factor,
+                out=np.zeros_like(blended),
+                where=dodge_factor > 0,
+            )
+        else:
+            blended = blend_fn(color_b, color)
         color_t = (shape - alpha) * alpha_b * color_b + alpha * (
-            (1.0 - alpha_b) * color + alpha_b * blend_fn(color_b, color)
+            (1.0 - alpha_b) * color + alpha_b * blended
         )
         self._color = utils.clip(
             utils.divide(
@@ -1656,7 +1819,7 @@ class Compositor:
 
         if layer.has_clip_layers():
             transformed_color = self._apply_clip_layers(
-                layer, transformed_color, self._alpha
+                layer.clip_layers, transformed_color, self._alpha, base=layer
             )
 
         shape_mask = self._get_mask(layer)
@@ -2011,9 +2174,13 @@ class Compositor:
         return color, shape, alpha, None
 
     def _apply_clip_layers(
-        self, layer: Layer, color: np.ndarray, alpha: np.ndarray
+        self,
+        clip_layers: Sequence[Layer],
+        color: np.ndarray,
+        alpha: np.ndarray,
+        base: Layer | None = None,
     ) -> np.ndarray:
-        # TODO: Consider Tag.BLEND_CLIPPING_ELEMENTS.
+        # TODO: Support BLEND_CLIPPING_ELEMENTS beyond _clips_after_color_overlay().
         compositor = Compositor(
             self._viewport,
             self._widen(color, self.channels),
@@ -2023,8 +2190,9 @@ class Compositor:
             widen=self._widen,
             color_mode=self._color_mode,
             cache=self._cache,
+            clip_base=base,
         )
-        for clip_layer in layer.clip_layers:
+        for clip_layer in clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)
         # Seeded with ``color`` itself, so the result is wanted as it stands on
         # that seed -- the clipped layers paint onto the base layer's color.
