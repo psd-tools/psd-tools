@@ -9,6 +9,8 @@ Changelog
 - [fix] Composite a simple Normal clipped pixel layer above its base's Color
   Overlay when interior effects are grouped but clipped layers are not. Other
   interior effects keep the previous order (#1055, #1065)
+- [fix] Color Dodge respects Fill and Transparency Shapes Layer on RGB8 pixel
+  layers, including pixel masks and opacity (#1056)
 
 1.26.1 (2026-11-11)
 -------------------
