@@ -1061,7 +1061,10 @@ class _Source:
 
 
 def _color_dodge_factor(
-    layer: Layer, alpha: np.ndarray, clip_base_is_binary: Callable[[], bool]
+    layer: Layer,
+    alpha: np.ndarray,
+    has_accepted_clips: Callable[[], bool],
+    clip_base_is_binary: Callable[[], bool],
 ) -> float | np.ndarray | None:
     """The verified RGB8 pixel-layer Dodge factor, before masks and opacity."""
     if not (
@@ -1075,9 +1078,9 @@ def _color_dodge_factor(
             or layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0
         )
         and not layer.has_vector_mask()
-        and not layer.has_clip_layers()
         and not layer.tagged_blocks.get_data(Tag.KNOCKOUT_SETTING, 0)
         and not layer.has_effects()
+        and not has_accepted_clips()
     ):
         return None
     ranges = layer._record.blending_ranges
@@ -1491,7 +1494,10 @@ class Compositor:
 
         try:
             dodge_factor = _color_dodge_factor(
-                layer, alpha, self._clip_base_has_binary_shape
+                layer,
+                alpha,
+                lambda: any(self._accepts(clip, True) for clip in clip_layers),
+                self._clip_base_has_binary_shape,
             )
         except _UNREADABLE as error:
             logger.debug("Cannot read the Color Dodge Fill of %s: %s", layer, error)

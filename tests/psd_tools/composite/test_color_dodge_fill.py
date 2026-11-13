@@ -173,6 +173,41 @@ def test_nonbinary_clipping_base_remains_excluded(
     assert factors == [None]
 
 
+@pytest.mark.parametrize("force", [False, True])
+def test_ignored_clip_layer_leaves_color_dodge_fill_unchanged(
+    force: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    doc = make_document()
+    expected = doc.composite(ignore_preview=True, force=force, apply_icc=False)
+    clip = PixelLayer.fromarray(
+        np.full((32, 32, 4), 255, dtype=np.uint8), doc, name="Synthetic clip"
+    )
+    clip.clipping = True
+
+    factors: list[object] = []
+    original = composite_module._color_dodge_factor
+
+    def spy(layer: Any, *args: Any) -> object:
+        factor = original(layer, *args)
+        if layer.blend_mode == BlendMode.COLOR_DODGE:
+            factors.append(factor)
+        return factor
+
+    monkeypatch.setattr(composite_module, "_color_dodge_factor", spy)
+    ignored = doc.composite(
+        ignore_preview=True,
+        force=force,
+        apply_icc=False,
+        layer_filter=lambda layer: layer is not clip,
+    )
+    assert factors[-1] is not None
+    assert ignored is not None and expected is not None
+    np.testing.assert_array_equal(np.asarray(ignored), np.asarray(expected))
+
+    doc.composite(ignore_preview=True, force=force, apply_icc=False)
+    assert factors[-1] is None
+
+
 def test_clipping_base_shape_read_once_per_base(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
