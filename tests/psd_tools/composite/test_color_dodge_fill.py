@@ -1,10 +1,8 @@
 """Synthetic RGB8 Color Dodge references rendered by Photoshop 27.4.0."""
 
-# Copyright (c) 2026 PSD fixture contributors. MIT terms: repository LICENSE.
-
 import io
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import numpy as np
 import pytest
@@ -89,7 +87,7 @@ class Options(TypedDict, total=False):
     base_mask: bool
 
 
-CASES: list[tuple[str, Options]] = [
+CASES: list[Any] = [
     ("fill0", {"fill": 0}),
     ("fill1", {"fill": 1}),
     ("fill2", {"fill": 2}),
@@ -104,8 +102,10 @@ CASES: list[tuple[str, Options]] = [
     ("masked-opacity128", {"mask": True, "opacity": 128}),
     ("backdrop128", {"backdrop_alpha": 128}),
     ("backdrop0", {"backdrop_alpha": 0}),
-    ("fill204", {"clipped": True}),
-    ("fill204", {"clipped": True, "clip_grouped": False}),
+    pytest.param("fill204", {"clipped": True}, id="clipped"),
+    pytest.param(
+        "fill204", {"clipped": True, "clip_grouped": False}, id="clipped-ungrouped"
+    ),
     ("clipped-base-mask", {"clipped": True, "base_mask": True}),
 ]
 
