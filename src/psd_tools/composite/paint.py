@@ -459,7 +459,12 @@ def _vertical_overlay_geometry(
         return None
     box = layer.bbox
     mask = layer.vector_mask
-    if layer.kind == "shape" and mask is not None and not mask.disabled:
+    if (
+        layer.kind == "shape"
+        and mask is not None
+        and not mask.disabled
+        and any(len(path) for path in mask.paths)
+    ):
         sizes = (layer._psd.width, layer._psd.height) * 2
         bounds = tuple(
             value * size for value, size in zip(mask.bbox, sizes, strict=True)

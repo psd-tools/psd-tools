@@ -226,6 +226,18 @@ def test_disabled_vector_mask_keeps_layer_bbox() -> None:
     assert paint._vertical_overlay_geometry(layer, desc) == (20, 19, False)
 
 
+def test_empty_vector_mask_keeps_layer_bbox() -> None:
+    _, layer, desc = _shape_overlay()
+    assert layer.bbox == (30, 20, 95, 39)
+    mask = layer.vector_mask
+    assert mask is not None
+    assert mask._data.path is not None
+    del mask._data.path[2]
+    mask._build()
+    assert not any(len(path) for path in mask.paths)
+    assert paint._vertical_overlay_geometry(layer, desc) == (20, 19, False)
+
+
 def test_pixel_layer_vector_mask_keeps_layer_bbox() -> None:
     _, shape, _ = _shape_overlay()
     doc = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
