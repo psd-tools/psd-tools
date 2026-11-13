@@ -89,6 +89,7 @@ def test_clipped_color_preserves_base_coverage(
 def test_adjustment_clip_keeps_backdrop_alpha(
     force: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    pytest.importorskip("scipy")
     psd = PSDImage.open(full_name("adjustments/adjustment_clipping.psd"))
     layer = next(
         node
