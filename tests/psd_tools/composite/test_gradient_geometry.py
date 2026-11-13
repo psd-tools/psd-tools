@@ -226,6 +226,17 @@ def test_disabled_vector_mask_keeps_layer_bbox() -> None:
     assert paint._vertical_overlay_geometry(layer, desc) == (20, 19, False)
 
 
+def test_pixel_layer_vector_mask_keeps_layer_bbox() -> None:
+    _, shape, _ = _shape_overlay()
+    doc = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
+    layer = doc[0]
+    desc = next(iter(layer.effects)).descriptor
+    expected = paint._vertical_overlay_geometry(layer, desc)
+    assert expected is not None
+    layer._vector_mask = shape.vector_mask
+    assert paint._vertical_overlay_geometry(layer, desc) == expected
+
+
 def test_integer_shape_bounds_on_large_document() -> None:
     doc, layer, desc = _shape_overlay()
     doc._record.header.height = 10000
