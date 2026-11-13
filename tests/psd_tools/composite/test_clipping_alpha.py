@@ -1,4 +1,5 @@
-from typing import Literal
+from collections.abc import Sequence
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -117,9 +118,11 @@ def test_adjustment_clip_keeps_backdrop_alpha(
     original = compositor._apply_clip_layers
     seeds = []
 
-    def apply_clips(layer: Layer, color: np.ndarray, seed: np.ndarray) -> np.ndarray:
+    def apply_clips(
+        clips: Sequence[Layer], color: np.ndarray, seed: np.ndarray, **kwargs: Any
+    ) -> np.ndarray:
         seeds.append(seed.copy())
-        return original(layer, color, seed)
+        return original(clips, color, seed, **kwargs)
 
     monkeypatch.setattr(compositor, "_apply_clip_layers", apply_clips)
     compositor.apply(layer)

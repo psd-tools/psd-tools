@@ -1,23 +1,30 @@
 Changelog
 =========
 
-1.26.1 (unreleased)
+1.26.2 (unreleased)
 -------------------
 
 - [fix] Clipped layers no longer over-attenuate the color of partially
   transparent pixel and group bases (#1057)
-- [fix] Compositing a file whose solid-color, gradient or vector-stroke fill
-  descriptor is malformed no longer raises ``KeyError``, ``AttributeError`` or
-  ``TypeError``. A layer fill that cannot be read is dropped, leaving any stored
-  pixels, and a stroke whose fill cannot be read is not drawn (#1058)
+- [fix] Rendering an 8-bit RGB document to PIL preserves fully opaque alpha
+  instead of exporting 254 when floating-point compositing falls just below 1. (#1054)
+- [fix] Composite a simple Normal clipped pixel layer above its base's Color
+  Overlay when interior effects are grouped but clipped layers are not. Other
+  interior effects keep the previous order (#1055, #1065)
+- [fix] Color Dodge respects Fill and Transparency Shapes Layer on RGB8 pixel
+  layers, including pixel masks and opacity (#1056)
+
+1.26.1 (2026-11-11)
+-------------------
+
+- [security] Compositing a file with a malformed solid-color, gradient or
+  vector-stroke fill descriptor no longer raises ``KeyError``, ``AttributeError``
+  or ``TypeError``. The unreadable fill is dropped instead (#1058)
 - [fix] A Brightness/Contrast layer saved with *Use Legacy* reads as
-  ``BrightnessContrast`` instead of an empty ``PixelLayer``, and composites with
-  Photoshop's legacy formula instead of being skipped. The low-level ``brit``
-  block reads its brightness and contrast as signed values (#1039)
-- [fix] Opening a PSD dominated by embedded smart-object payloads no longer peaks
-  at about three times the file size in memory; linked-layer blocks are parsed
-  from a bounded substream instead of a copy. A block whose parser leaves part
-  of its window unread now reads as raw bytes (#899, #1037)
+  ``BrightnessContrast`` and composites with Photoshop's legacy formula
+  instead of being an empty ``PixelLayer`` (#1039)
+- [fix] Opening a PSD dominated by smart-object payloads no longer peaks at
+  about three times the file size in memory (#899, #1037)
 
 1.26.0 (2026-10-21)
 -------------------
@@ -648,7 +655,7 @@ Changelog
   :py:func:`psd_tools.composite.composite` to keep them. Also removes the
   ``Image.fromarray()`` spelling Pillow removes in 13 (#729)
 - [fix] Correct pass-through group compositing when the group opacity is below
-  1.   The group's contribution was blended against the backdrop twice, so the
+  255. The group's contribution was blended against the backdrop twice, so the
   output varied with nesting depth (#703, #706)
 - [fix] Detect the real user mask header from the channel list rather than by
   record length alone, so ``user_mask_density``, ``user_mask_feather``,

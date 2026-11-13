@@ -1516,7 +1516,7 @@ def test_a_centered_vector_stroke_covers_both_sides_of_the_path() -> None:
         np.zeros((height, width, 1), dtype=np.float32),
         force=True,
     )
-    source = compositor._resolve_source(layer)
+    source = compositor._resolve_source(layer, layer.clip_layers)
 
     def extent(canvas: np.ndarray) -> tuple[int, int, int, int]:
         rows, columns = np.nonzero(canvas[..., 0] > 0.5)
@@ -1772,7 +1772,7 @@ def test_resolve_source_reads_the_layer_without_writing_the_canvas() -> None:
     compositor = _canvas(psd)
     before = compositor.result_over_backdrop().copy()
 
-    source = compositor._resolve_source(psd[0])
+    source = compositor._resolve_source(psd[0], psd[0].clip_layers)
     assert source.color.shape == (psd.height, psd.width, 3)
     assert np.array_equal(compositor.result_over_backdrop(), before)
 
@@ -1790,7 +1790,7 @@ def test_resolve_source_folds_the_mask_and_opacity_into_the_operands() -> None:
     layer = psd[0]
     layer.opacity = 128
     compositor = _canvas(psd)
-    source = compositor._resolve_source(layer)
+    source = compositor._resolve_source(layer, layer.clip_layers)
     assert np.allclose(source.alpha, source.shape * (128 / 255.0))
     assert source.fill_opacity == 1.0
 
@@ -1823,7 +1823,7 @@ def test_an_effect_canvas_that_nothing_painted_on_hands_its_source_back() -> Non
     """
     psd = PSDImage.open(full_name("clipping-mask.psd"))
     compositor = _canvas(psd)
-    source = compositor._resolve_source(psd[0])
+    source = compositor._resolve_source(psd[0], psd[0].clip_layers)
     canvas = composite_module._EffectCanvas(compositor, source)
     assert canvas.source() is source
 
@@ -2719,7 +2719,7 @@ def test_mask_equal_to_shape_channel_is_not_applied_twice() -> None:
     assert compositor._get_mask(layer) == 1.0
     shape = layer.numpy("shape")
     assert shape is not None
-    source = compositor._resolve_source(layer)
+    source = compositor._resolve_source(layer, layer.clip_layers)
     # ``viewbox`` starts at the origin, so the layer's pixel (x, y) sits at
     # ``shape[y - bbox.top, x - bbox.left]``.
     left, top = layer.bbox[:2]
