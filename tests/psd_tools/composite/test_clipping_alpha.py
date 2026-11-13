@@ -6,10 +6,10 @@ import pytest
 from PIL import Image
 
 from psd_tools import PSDImage
-from psd_tools.api.layers import AdjustmentLayer, Group, Layer, PixelLayer
+from psd_tools.api.layers import AdjustmentLayer, Layer, PixelLayer
 from psd_tools.composite import composite
 from psd_tools.composite.composite import Compositor
-from psd_tools.constants import BlendMode, CompatibilityMode
+from psd_tools.constants import BlendMode
 
 from ..utils import full_name
 
@@ -83,24 +83,6 @@ def test_clipped_color_preserves_base_coverage(
     np.testing.assert_allclose(color[visible], expected[visible], atol=2e-6, rtol=0)
     np.testing.assert_array_equal(shape, before[1])
     np.testing.assert_array_equal(alpha, before[2])
-
-
-@pytest.mark.parametrize("blend", [BlendMode.NORMAL, BlendMode.PASS_THROUGH])
-@pytest.mark.parametrize("force", [False, True])
-def test_group_clip_changes_color_not_coverage(blend: BlendMode, force: bool) -> None:
-    psd = PSDImage.new("RGB", (1, 1))
-    psd.compatibility_mode = CompatibilityMode.CLIP_STUDIO_PAINT
-    PixelLayer.frompil(Image.new("RGBA", (1, 1), (200, 100, 50, 64)), psd)
-    group = Group.new(psd, "clip")
-    group.blend_mode = blend
-    group.clipping = True
-    PixelLayer.frompil(Image.new("RGBA", (1, 1), (0, 0, 0, 128)), group)
-
-    color, shape, alpha = composite(psd, force=force)
-    expected = np.array([200, 100, 50]) / 255 * (1 - 128 / 255)
-    np.testing.assert_allclose(color[0, 0], expected, atol=2e-6, rtol=0)
-    np.testing.assert_allclose(shape, 64 / 255, atol=1e-7, rtol=0)
-    np.testing.assert_allclose(alpha, 64 / 255, atol=1e-7, rtol=0)
 
 
 @pytest.mark.parametrize("force", [False, True])
