@@ -10,6 +10,7 @@ with a vector mask) are forged, by editing or copying ``masks.psb``'s.
 """
 
 import copy
+import functools
 import logging
 from collections.abc import Callable
 from typing import Any, cast
@@ -857,3 +858,112 @@ def test_drop_shadows_render_to_photoshops_preview(
 def test_drop_shadows_render_to_photoshops_preview_when_forced() -> None:
     """``force=True`` redraws masks.psb's cards from their paths: 1.6e-5."""
     assert _error(PSDImage.open(full_name("masks.psb")), None, force=True) <= 3e-5
+
+
+# -- Photoshop-authored grids ---------------------------------------------- #
+
+# Each fixture lays one drop shadow per cell of a grid, with margins wider than
+# the shadow's reach so that no cell touches another. A cell is held to
+# Photoshop's preview by how much of the error of the same render without
+# shadows it removes, which holds across cells whose absolute errors differ by
+# orders of magnitude. ``lighterColor`` is left out: it keeps the backdrop
+# wherever the shadow is darker, so its cell shows no shadow to measure.
+_GRIDS = {
+    "effects/drop-shadow-opacity.psd": 100,
+    "effects/drop-shadow-groups.psd": 160,
+    "effects/drop-shadow-spread.psd": 140,
+    "effects/drop-shadow-blend-modes.psd": 64,
+}
+_IMPROVEMENT = 20
+_MEASURABLE = 1e-5
+
+_KNOCKOUT = "knockout on partially transparent content"
+_UNSETTLED: dict[tuple[str, str], str] = {
+    ("effects/drop-shadow-groups.psd", "group-normal"): _KNOCKOUT,
+    ("effects/drop-shadow-groups.psd", "group-passthrough"): _KNOCKOUT,
+    ("effects/drop-shadow-groups.psd", "group-child-shadow"): _KNOCKOUT,
+    ("effects/drop-shadow-spread.psd", "soft-spread0"): _KNOCKOUT,
+    (
+        "effects/drop-shadow-spread.psd",
+        "soft-spread25",
+    ): "spread on a soft edge (#1075)",
+    (
+        "effects/drop-shadow-spread.psd",
+        "soft-spread50",
+    ): "spread on a soft edge (#1075)",
+    (
+        "effects/drop-shadow-spread.psd",
+        "soft-spread100",
+    ): "spread on a soft edge (#1075)",
+    **{
+        ("effects/drop-shadow-blend-modes.psd", mode): "eight blend modes (#1076)"
+        for mode in (
+            "colorBurn",
+            "colorDodge",
+            "linearBurn",
+            "linearDodge",
+            "linearLight",
+            "vividLight",
+            "hardMix",
+            "difference",
+        )
+    },
+}
+
+
+def _grid_cases() -> list[Any]:
+    cases = []
+    for filename in _GRIDS:
+        psd = PSDImage.open(full_name(filename))
+        for layer in psd.descendants():
+            if not list(layer.effects.find("dropshadow")) or layer.name.endswith(
+                "-green"
+            ):
+                continue
+            if layer.name == "lighterColor":
+                continue
+            marks = []
+            if (filename, layer.name) in _UNSETTLED:
+                marks.append(
+                    pytest.mark.xfail(
+                        strict=True, reason=_UNSETTLED[(filename, layer.name)]
+                    )
+                )
+            cases.append(
+                pytest.param(
+                    filename, layer.name, marks=marks, id=f"{filename}-{layer.name}"
+                )
+            )
+    return cases
+
+
+@functools.cache
+def _grid_renders(filename: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Photoshop's preview, and the render with and without the shadows."""
+    psd = PSDImage.open(full_name(filename))
+    reference = psd.numpy()[:, :, :3]
+    shadowed = composite(psd)[0][:, :, :3]
+    unshadowed = PSDImage.open(full_name(filename))
+    for layer in unshadowed.descendants():
+        for effect in list(layer.effects.find("dropshadow")):
+            effect.descriptor[Key.Enabled] = False
+    return reference, shadowed, composite(unshadowed)[0][:, :, :3]
+
+
+@pytest.mark.parametrize(("filename", "name"), _grid_cases())
+def test_a_grid_cell_renders_to_photoshops_preview(filename: str, name: str) -> None:
+    layer = next(
+        x for x in PSDImage.open(full_name(filename)).descendants() if x.name == name
+    )
+    left, top, right, bottom = layer.bbox
+    cell = _GRIDS[filename]
+    column, row = (left + right) // 2 // cell, (top + bottom) // 2 // cell
+    region = (
+        slice(row * cell, (row + 1) * cell),
+        slice(column * cell, (column + 1) * cell),
+    )
+
+    reference, shadowed, unshadowed = _grid_renders(filename)
+    without = float(_mse(reference[region], unshadowed[region]))
+    assert without > _MEASURABLE, "the cell has no shadow"
+    assert float(_mse(reference[region], shadowed[region])) * _IMPROVEMENT <= without
