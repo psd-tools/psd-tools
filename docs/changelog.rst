@@ -4,8 +4,11 @@ Changelog
 1.26.2 (unreleased)
 -------------------
 
+- [fix] Rendering an 8-bit RGB document to PIL preserves fully opaque alpha
+  instead of exporting 254 when floating-point compositing falls just below 1. (#1054)
 - [fix] Composite a simple Normal clipped pixel layer above its base's Color
-  Overlay when interior effects are grouped but clipped layers are not (#1055)
+  Overlay when interior effects are grouped but clipped layers are not. Other
+  interior effects keep the previous order (#1055, #1065)
 
 1.26.1 (2026-11-11)
 -------------------
