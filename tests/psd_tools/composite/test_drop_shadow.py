@@ -37,6 +37,8 @@ from psd_tools.terminology import Key, Klass
 from ..utils import full_name
 from .test_composite import _mse
 
+pytest.importorskip("scipy")
+
 logger = logging.getLogger(__name__)
 
 
@@ -796,19 +798,11 @@ def test_an_unreadable_drop_shadow_is_dropped_and_the_document_renders(
 
 # Each case is a document, the region around its drop shadows (None for the
 # whole document), the bound the render is held to, and a floor under the
-# error of the same render with the shadows switched off -- which is what
-# shows the region is measuring a shadow at all. Measured with the
-# ``force=False`` render these tests make:
-#
-# - layer_effects.psd: 4.3e-6 against 1.4e-3 without. The region stops short
-#   of the layer below, whose inner shadow is not drawn.
-# - masks.psb, the whole document: 1.3e-5 against 1.8e-4 without.
-# - layer_params.psb: 5.2e-3 against 2.7e-2 without. What is left is the
-#   outer glow on the same layer, which is not drawn; the bound is what pins
-#   spread, since leaving spread out scores 6.6e-3 and shrinking the
-#   silhouette by it, as #679 first did, 9.2e-3.
-# - layer_comps.psb, the whole document: 4.5e-3 against 6.7e-3 without,
-#   the rest being a bevel that is not drawn.
+# error of the same render with the shadows switched off, which shows the
+# region is measuring a shadow at all. Effects other than the drop shadow
+# (an inner shadow, an outer glow, a bevel) are not drawn, so they set the
+# bound for the regions that include them; ``layer_params.psb`` also pins
+# spread, since a silhouette shrunk by it scores worse.
 _PREVIEWS = [
     ("layer_effects.psd", (60, 215, 620, 296), 1e-5, 1e-3),
     ("masks.psb", None, 3e-5, 1.5e-4),
