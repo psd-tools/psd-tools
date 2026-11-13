@@ -15,6 +15,9 @@ Changelog
   interior effects keep the previous order (#1055, #1065)
 - [fix] Color Dodge respects Fill and Transparency Shapes Layer on RGB8 pixel
   layers, including pixel masks and opacity (#1056)
+- [fix] Vertical Gradient Overlays on RGB8 pixel and shape layers use the layer
+  height as the gradient span instead of its width. Applies to Classic,
+  non-dithered, aligned gradients with integer endpoints (#1062)
 
 1.26.1 (2026-11-11)
 -------------------

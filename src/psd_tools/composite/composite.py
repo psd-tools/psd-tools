@@ -222,7 +222,7 @@ def _draw_pattern_overlay(
 def _draw_gradient_overlay(
     layer: Layer, descriptor: Any, channels: int
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
-    return paint.draw_gradient_fill(layer.bbox, layer._psd.color_mode, descriptor)
+    return paint.draw_gradient_overlay(layer, descriptor)
 
 
 # Iteration order is the order the overlays are composited in, unchanged from
