@@ -1007,7 +1007,9 @@ class _Source:
     dodge_factor: float | np.ndarray | None = None
 
 
-def _color_dodge_factor(layer: Layer, alpha: np.ndarray) -> float | np.ndarray | None:
+def _color_dodge_factor(
+    layer: Layer, alpha: np.ndarray, clip_base_is_binary: Callable[[], bool]
+) -> float | np.ndarray | None:
     """The verified RGB8 pixel-layer Dodge factor, before masks and opacity."""
     if not (
         layer.blend_mode == BlendMode.COLOR_DODGE
@@ -1031,21 +1033,8 @@ def _color_dodge_factor(layer: Layer, alpha: np.ndarray) -> float | np.ndarray |
         for channel in [ranges.composite_ranges, *(ranges.channel_ranges or ())]
     ):
         return None
-    if layer.clipping:
-        base = None
-        if layer.parent is not None:
-            for sibling in cast(Sequence[Layer], layer.parent):
-                if sibling is layer:
-                    break
-                if not sibling.clipping:
-                    base = sibling
-        if base is None or not base.has_pixels():
-            return None
-        # Clipping colors on a partially transparent base are not reconstructed
-        # correctly; its later mask and opacity are separate from this channel.
-        base_shape = base.numpy("shape")
-        if base_shape is not None and not np.all((base_shape == 0) | (base_shape == 1)):
-            return None
+    if layer.clipping and not clip_base_is_binary():
+        return None
     fill = layer.fill_opacity / 255.0
     if layer.tagged_blocks.get_data(Tag.TRANSPARENCY_SHAPES_LAYER, 1) == 0:
         return fill * alpha
@@ -1283,8 +1272,11 @@ class Compositor:
         widen: _Widen = _widen,
         color_mode: ColorMode | None = None,
         cache: _PassCache | None = None,
+        clip_base: Layer | None = None,
     ):
         self._viewport = viewport
+        self._clip_base = clip_base
+        self._clip_base_binary: bool | None = None
         self._layer_filter = layer_filter
         self._force = force
         self._mask_repeats: dict[int, bool] = {}
@@ -1421,8 +1413,11 @@ class Compositor:
             color = self._apply_clip_layers(layer, color, alpha)
 
         try:
-            dodge_factor = _color_dodge_factor(layer, alpha)
-        except _UNREADABLE:
+            dodge_factor = _color_dodge_factor(
+                layer, alpha, self._clip_base_has_binary_shape
+            )
+        except _UNREADABLE as error:
+            logger.debug("Cannot read the Color Dodge Fill of %s: %s", layer, error)
             dodge_factor = None
         shape_mask = self._get_mask(layer)
         fill_opacity, opacity = self._get_const(layer)
@@ -1459,6 +1454,23 @@ class Compositor:
             knockout_shape=shape,
             dodge_factor=dodge_factor,
         )
+
+    def _clip_base_has_binary_shape(self) -> bool:
+        """Whether the clipping base's shape channel is only 0 or 1; memoized.
+
+        Clipping colors on a partially transparent base are not reconstructed
+        correctly; the base's later mask and opacity are separate from this channel.
+        """
+        if self._clip_base_binary is None:
+            base = self._clip_base
+            if base is None or not base.has_pixels():
+                self._clip_base_binary = False
+            else:
+                shape = base.numpy("shape")
+                self._clip_base_binary = shape is None or bool(
+                    np.all((shape == 0) | (shape == 1))
+                )
+        return self._clip_base_binary
 
     def _composite_source(self, source: _Source, blend_mode: BlendMode) -> None:
         """Composite a resolved source into this compositor's canvases."""
@@ -2088,6 +2100,7 @@ class Compositor:
             widen=self._widen,
             color_mode=self._color_mode,
             cache=self._cache,
+            clip_base=layer,
         )
         for clip_layer in layer.clip_layers:
             compositor.apply(clip_layer, clip_compositing=True)

@@ -1,5 +1,6 @@
 """Synthetic RGB8 Color Dodge references rendered by Photoshop 27.4.0."""
 
+import importlib
 import io
 from pathlib import Path
 from typing import Any, TypedDict
@@ -15,6 +16,8 @@ from psd_tools.constants import BlendMode, ChannelID, Tag
 from psd_tools.psd.layer_and_mask import LayerBlendingRanges
 
 from ..utils import full_name
+
+composite_module = importlib.import_module("psd_tools.composite.composite")
 
 
 def make_document(
@@ -152,12 +155,42 @@ def test_color_dodge_native(
 
 @pytest.mark.parametrize("force", [False, True])
 @pytest.mark.parametrize("flag", [False, True])
-def test_nonbinary_clipping_base_remains_excluded(flag: bool, force: bool) -> None:
+def test_nonbinary_clipping_base_remains_excluded(
+    flag: bool, force: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    factors: list[object] = []
+    original = composite_module._color_dodge_factor
+
+    def spy(layer: Any, *args: Any) -> object:
+        factor = original(layer, *args)
+        if layer.blend_mode == BlendMode.COLOR_DODGE:
+            factors.append(factor)
+        return factor
+
+    monkeypatch.setattr(composite_module, "_color_dodge_factor", spy)
     doc = make_document(flag=flag, clipped=True, backdrop_alpha=128)
-    actual = doc.composite(ignore_preview=True, force=force, apply_icc=False)
-    assert actual is not None
-    # Preserve the existing partial-alpha clipping result, not native correctness.
-    assert actual.getpixel((27, 27)) == (65, 134, 240, 128)
+    assert doc.composite(ignore_preview=True, force=force, apply_icc=False)
+    assert factors == [None]
+
+
+def test_clipping_base_shape_read_once_per_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = make_document(clipped=True)[0]
+    reads = []
+    original = base.numpy
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        reads.append(args)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(base, "numpy", counting)
+    compositor = composite_module.Compositor(
+        (0, 0, 1, 1), np.zeros((1, 1, 3)), np.zeros((1, 1, 1)), clip_base=base
+    )
+    assert compositor._clip_base_has_binary_shape()
+    assert compositor._clip_base_has_binary_shape()
+    assert reads == [("shape",)]
 
 
 def test_synthetic_roundtrip(tmp_path: Path) -> None:
