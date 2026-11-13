@@ -30,7 +30,7 @@ from psd_tools.composite.composite import (
 )
 from psd_tools.constants import BlendMode, Tag
 from psd_tools.psd.base import ByteElement
-from psd_tools.psd.descriptor import Descriptor, Double
+from psd_tools.psd.descriptor import Bool, Descriptor, Double
 from psd_tools.terminology import Key, Klass
 
 from ..utils import full_name
@@ -718,6 +718,33 @@ def test_an_invisible_shadow_adds_nothing_to_the_group_shape() -> None:
     shape = compositor.shape
     assert not shape[:, :, 0][:, :].any() or shape[40:50, 40:50].all()
     assert not shape[55:, :].any()
+
+
+def test_a_shadow_canvas_over_the_budget_is_dropped() -> None:
+    """The canvas is checked against ``max_alloc_bytes`` before it is allocated."""
+    psd = PSDImage.open(full_name("layer_comps.psb"))
+    effect = next(
+        e for layer in psd.descendants() for e in layer.effects.find("dropshadow")
+    )
+    effect.descriptor[Key.Blur] = Double(250.0)
+    effect.descriptor[Key.ChokeMatte] = Double(50.0)
+    psd.max_alloc_bytes = 4 << 20
+    color, _, alpha = composite(psd)
+    disabled = _rendered(_setting(Key.Enabled, False))
+    assert np.array_equal(np.concatenate((color, alpha), axis=2), disabled)
+
+
+def test_a_redrawn_hollow_shape_with_no_stroke_casts_no_shadow() -> None:
+    """A disabled fill leaves nothing to cast from, as it leaves nothing to draw."""
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Rectangle 1")
+    stroke = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_DATA)
+    stroke["strokeEnabled"] = Bool(False)
+    layer.tagged_blocks.set_data(Tag.VECTOR_STROKE_DATA, stroke)
+    _forge_shadow(layer, Blur=0.0, Distance=5.0, Opacity=100.0)
+    box = layer.bbox
+    viewport = (box[0] - 20, box[1] - 20, box[2] + 20, box[3] + 20)
+    assert _alone(layer, viewport, force=True).max() == 0.0
 
 
 @pytest.mark.parametrize("blur", [1e3, 1e9])

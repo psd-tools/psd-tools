@@ -108,6 +108,11 @@ _MAX_STROKE_SIZE = 250.0
 # The largest drop shadow size Photoshop offers.
 _MAX_SHADOW_SIZE = 250.0
 
+# What a shadow canvas costs per pixel at its peak: the silhouette, the blurred
+# and the shifted copies, and the coverage pasted from it. Spread adds the
+# distance transforms of a stroke, so it is budgeted as one.
+_SHADOW_BYTES = 32
+
 # What a stroke canvas costs per pixel at its peak: the signed-distance
 # transients (the transform's float64 planes and the seed index) dwarf the
 # float32 canvas and colour planes, so a budget is checked against this, not
@@ -567,6 +572,8 @@ def drop_shadow_bbox(
     angle: float,
     size: float,
     viewport: tuple[int, int, int, int] | None = None,
+    spread: float = 0.0,
+    max_alloc_bytes: AllocBudget | None = None,
 ) -> tuple[int, int, int, int]:
     """The canvas :py:func:`draw_drop_shadow` needs to draw a shadow on.
 
@@ -579,7 +586,9 @@ def drop_shadow_bbox(
     With a ``viewport``, the box is cut to the part that can reach it: the
     viewport and the viewport moved back against the offset, grown by the same
     margin. Nothing outside lands in the viewport, so a huge size or distance
-    does not allocate a canvas for it. The result may be empty.
+    does not allocate a canvas for it. The result may be empty. Raises
+    :class:`ValueError` when that canvas is over the per-axis limit or
+    ``max_alloc_bytes``, which the caller reads as an unreadable shadow.
 
     An empty ``bbox`` is returned untouched, as :py:func:`stroke_bbox` does:
     there is no silhouette to cast.
@@ -609,9 +618,18 @@ def drop_shadow_bbox(
         min(grown[2], reach[2]),
         min(grown[3], reach[3]),
     )
-    return (
-        clipped if clipped[0] < clipped[2] and clipped[1] < clipped[3] else (0, 0, 0, 0)
+    if clipped[0] >= clipped[2] or clipped[1] >= clipped[3]:
+        return (0, 0, 0, 0)
+    width, height = clipped[2] - clipped[0], clipped[3] - clipped[1]
+    per_pixel = _STROKE_BYTES if spread > 0.0 and size > 0.0 else _SHADOW_BYTES
+    check_pixel_size(
+        width,
+        height,
+        max_alloc_bytes=max_alloc_bytes,
+        estimated_bytes=width * height * per_pixel,
+        warn=False,
     )
+    return clipped
 
 
 def _spread(alpha: np.ndarray, grow: float) -> np.ndarray:

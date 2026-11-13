@@ -2681,11 +2681,15 @@ class Compositor:
         box and pass, as :py:meth:`_get_group_shape` does for a stroke.
         """
         mask = self._get_mask(layer, viewport)
-        own = (
-            self._get_group_shape(layer, viewport, alpha=True)
-            if layer.is_group()
-            else self._get_object_shape(layer, viewport)
-        )
+        if layer.is_group():
+            own = self._get_group_shape(layer, viewport, alpha=True)
+        else:
+            own = self._get_object_shape(layer, viewport)
+            # A redrawn shape with its fill off has no coverage of its own.
+            if utils.is_fill_disabled(layer) and (
+                self._force or not layer.has_pixels()
+            ):
+                own = own * 0.0
         return utils.clip(own * mask)
 
     def _apply_drop_shadows(self, layer: Layer) -> None:
@@ -2729,7 +2733,13 @@ class Compositor:
                 blend_mode = shadow.blend_mode
                 knocks_out = shadow.layer_knocks_out
                 bbox = drop_shadow_bbox(
-                    cast_from, distance, angle, size, self._viewport
+                    cast_from,
+                    distance,
+                    angle,
+                    size,
+                    self._viewport,
+                    spread,
+                    layer._psd._max_alloc_bytes,
                 )
             except _UNREADABLE as error:
                 logger.debug("Cannot measure a drop shadow of %s: %s", layer, error)
