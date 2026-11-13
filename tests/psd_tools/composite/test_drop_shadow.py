@@ -26,6 +26,7 @@ from psd_tools.composite.composite import (
     Compositor,
     _content_bbox,
     _effect_reach,
+    _knockout_survival,
     _shadow_reach,
     paste,
 )
@@ -342,6 +343,26 @@ def test_fill_opacity_leaves_the_drop_shadow_and_the_knockout_alone() -> None:
     beside, under = 16 - 4, (layer.bbox[2] - layer.bbox[0]) // 2 + 16
     assert float(faded[y, beside, 0]) == pytest.approx(float(full[y, beside, 0]))
     assert float(faded[y, under, 0]) == 0.0
+
+
+@pytest.mark.parametrize(
+    ("alpha", "paint", "expected"),
+    [
+        (0.0, 0.5, 1.0),
+        (0.5, 0.0, 0.5),
+        (0.5, 1.0, 1.0),
+        (0.9, 0.5, 0.1 / 0.55),
+        (1.0, 0.5, 0.0),
+        (1.0, 1.0, 0.0),
+    ],
+)
+def test_a_knockout_leaves_what_the_backdrop_shows_through_the_layer(
+    alpha: float, paint: float, expected: float
+) -> None:
+    """The shadow shows by ``1 - alpha`` through a layer however faded its paint."""
+    silhouette = np.full((1, 1, 1), alpha, dtype=np.float32)
+    survival = _knockout_survival(silhouette, paint)
+    assert float(survival[0, 0, 0]) == pytest.approx(expected, abs=1e-6)
 
 
 def test_a_drop_shadow_lies_beneath_the_layer_not_beside_it() -> None:
@@ -864,6 +885,7 @@ def test_drop_shadows_render_to_photoshops_preview_when_forced() -> None:
 # wherever the shadow is darker, so its cell shows no shadow to measure.
 _GRIDS = {
     "effects/drop-shadow-opacity.psd": 100,
+    "effects/drop-shadow-knockout.psd": 100,
     "effects/drop-shadow-groups.psd": 160,
     "effects/drop-shadow-spread.psd": 140,
     "effects/drop-shadow-blend-modes.psd": 64,
@@ -871,12 +893,7 @@ _GRIDS = {
 _IMPROVEMENT = 20
 _MEASURABLE = 1e-5
 
-_KNOCKOUT = "knockout on partially transparent content"
 _UNSETTLED: dict[tuple[str, str], str] = {
-    ("effects/drop-shadow-groups.psd", "group-normal"): _KNOCKOUT,
-    ("effects/drop-shadow-groups.psd", "group-passthrough"): _KNOCKOUT,
-    ("effects/drop-shadow-groups.psd", "group-child-shadow"): _KNOCKOUT,
-    ("effects/drop-shadow-spread.psd", "soft-spread0"): _KNOCKOUT,
     (
         "effects/drop-shadow-spread.psd",
         "soft-spread25",

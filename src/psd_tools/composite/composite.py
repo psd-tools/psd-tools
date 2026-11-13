@@ -888,6 +888,26 @@ def _is_background_layer(layer: "LayerProtocol") -> bool:
     )
 
 
+def _knockout_survival(silhouette: np.ndarray, paint_opacity: float) -> np.ndarray:
+    """The share of a drop shadow left beneath a layer that knocks it out.
+
+    ``paint_opacity`` is the fill opacity times the layer opacity. The layer is
+    composited over the shadow by ``silhouette * paint_opacity``, and what the
+    backdrop shows of the shadow through it is ``1 - silhouette`` whatever the
+    paint opacity: a layer at full opacity cuts nothing until it is opaque, and
+    one with no paint cuts by its whole silhouette.
+    """
+    covered = silhouette * paint_opacity
+    remaining = np.float32(1.0) - covered
+    survival = np.divide(
+        np.float32(1.0) - silhouette,
+        remaining,
+        out=np.zeros_like(silhouette),
+        where=remaining > 1e-6,
+    )
+    return np.minimum(survival, np.float32(1.0))
+
+
 def _read_knockout(layer: Layer) -> Knockout:
     """Read a layer's knockout setting, tolerating undefined values.
 
@@ -2705,9 +2725,10 @@ class Compositor:
         outer stroke. Fill opacity does not: it fades the layer's own paint
         and not its effects, which is what lets a layer at fill 0 cast a
         shadow and nothing else. With "layer knocks out drop shadow" on, the
-        shadow is cut away under the same silhouette it is cast from rather
-        than under the layer's paint, so a layer faded by fill opacity shows
-        the backdrop through itself and not its shadow.
+        shadow is cut under the silhouette it is cast from rather than under
+        the layer's paint, as :py:func:`_knockout_survival` measures, so a
+        layer faded by fill opacity shows the backdrop through itself and not
+        its shadow.
 
         Each effect is guarded as the strokes are, with the silhouette read
         outside both guards so that a fault compositing a group's contents is
@@ -2718,7 +2739,7 @@ class Compositor:
         shadows = _readable(layer, "dropshadow")
         if not shadows:
             return
-        _, opacity = self._get_const(layer)
+        fill_opacity, opacity = self._get_const(layer)
         if opacity <= 0.0:
             return
         cast_from = _cast_bbox(layer, self._cache.content_bboxes)
@@ -2763,7 +2784,9 @@ class Compositor:
                 logger.debug("Cannot draw a drop shadow of %s: %s", layer, error)
                 continue
             if knocks_out:
-                coverage = coverage * (1.0 - silhouette)
+                coverage = coverage * _knockout_survival(
+                    silhouette, fill_opacity * opacity
+                )
             coverage = paste(self._viewport, bbox, coverage)
             if coverage.any():
                 self._apply_source(
