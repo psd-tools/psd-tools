@@ -1490,7 +1490,10 @@ class Compositor:
             color, shape, alpha, stroke = self._get_object(layer)
 
         if clip_layers and not clip_after_effects:
-            color = self._apply_clip_layers(clip_layers, color, alpha, base=layer)
+            # Clips change straight color; the base's coverage is applied below.
+            color = self._apply_clip_layers(
+                clip_layers, color, np.ones_like(alpha), base=layer
+            )
 
         try:
             dodge_factor = _color_dodge_factor(
