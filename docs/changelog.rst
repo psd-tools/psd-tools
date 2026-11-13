@@ -18,6 +18,12 @@ Changelog
 - [fix] Vertical Gradient Overlays on RGB8 pixel and shape layers use the layer
   height as the gradient span instead of its width. Applies to Classic,
   non-dithered, aligned gradients with integer endpoints (#1062)
+- [fix] A drop shadow layer effect is now rendered when a document is
+  composited from its layers, instead of being dropped. It fades with the
+  layer's opacity but not its fill opacity; contour and noise are not
+  applied, and the blur approximates Photoshop's. With "layer knocks out
+  drop shadow" on, a layer at full fill cuts nothing until it is opaque.
+  Needs ``scipy``, as strokes do (#679, #1069)
 
 1.26.1 (2026-11-11)
 -------------------
