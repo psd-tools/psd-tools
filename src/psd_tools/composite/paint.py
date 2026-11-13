@@ -459,13 +459,17 @@ def _vertical_overlay_geometry(
         return None
     box = layer.bbox
     mask = layer.vector_mask
-    if mask is not None:
+    if mask is not None and not mask.disabled:
+        sizes = (layer._psd.width, layer._psd.height) * 2
         bounds = tuple(
-            value * (layer._psd.width if i % 2 == 0 else layer._psd.height)
-            for i, value in enumerate(mask.bbox)
+            value * size for value, size in zip(mask.bbox, sizes, strict=True)
         )
-        # Vector coordinates are serialized as fixed-point document fractions.
-        if any(not math.isfinite(v) or abs(v - round(v)) > 1e-4 for v in bounds):
+        # Vector coordinates are 8.24 fixed-point document fractions, so one
+        # unit of error scales with the document dimension.
+        if any(
+            not math.isfinite(v) or abs(v - round(v)) > size / 2**24
+            for v, size in zip(bounds, sizes, strict=True)
+        ):
             return None
         left, top, right, bottom = (round(v) for v in bounds)
         box = left, top, right, bottom

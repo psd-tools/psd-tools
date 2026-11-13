@@ -193,3 +193,50 @@ def test_fill_and_stroke_do_not_use_overlay_geometry(
 
     monkeypatch.setattr(paint, "_vertical_overlay_geometry", reject)
     np.testing.assert_array_equal(before, _render(doc, force))
+
+
+def _shape_overlay() -> tuple[PSDImage, Layer, Descriptor]:
+    doc = PSDImage.open(full_name("gradient-geometry/shape--90-odd.psd"))
+    layer = doc[0]
+    return doc, layer, next(iter(layer.effects)).descriptor
+
+
+def _set_path_rows(layer: Layer, rows: tuple[float, float], height: int) -> None:
+    """Rewrite the path's y coordinates as 8.24 fractions of `height` rows."""
+    top, bottom = (np.floor(row / height * 2**24) / 2**24 for row in rows)
+    mask = layer.vector_mask
+    assert mask is not None
+    assert mask._data.path is not None
+    knots = mask._data.path[2]
+    for knot, y in zip(knots, (top, top, bottom, bottom), strict=False):
+        knot.anchor = (y, knot.anchor[1])
+        knot.preceding = (y, knot.preceding[1])
+        knot.leaving = (y, knot.leaving[1])
+
+
+def test_disabled_vector_mask_keeps_layer_bbox() -> None:
+    doc, layer, desc = _shape_overlay()
+    enabled = paint._vertical_overlay_geometry(layer, desc)
+    assert enabled is not None
+    assert layer.bbox == (30, 20, 95, 39)
+    assert layer.vector_mask is not None
+    layer.vector_mask._data.flags |= 4
+    _set_path_rows(layer, (60, 100), doc.height)
+    assert enabled != (20, 19, False)
+    assert paint._vertical_overlay_geometry(layer, desc) == (20, 19, False)
+
+
+def test_integer_shape_bounds_on_large_document() -> None:
+    doc, layer, desc = _shape_overlay()
+    doc._record.header.height = 10000
+    _set_path_rows(layer, (48, 80), 10000)
+    geometry = paint._vertical_overlay_geometry(layer, desc)
+    assert geometry is not None
+    assert geometry[:2] == (48, 32)
+
+
+def test_fractional_shape_bounds_on_large_document_are_excluded() -> None:
+    doc, layer, desc = _shape_overlay()
+    doc._record.header.height = 10000
+    _set_path_rows(layer, (48.5, 80), 10000)
+    assert paint._vertical_overlay_geometry(layer, desc) is None
