@@ -3,6 +3,7 @@ Changelog
 
 1.26.2 (unreleased)
 -------------------
+
 - [fix] Clipped layers no longer over-attenuate the color of partially
   transparent pixel and group bases (#1057)
 - [fix] Rendering an 8-bit RGB document to PIL preserves fully opaque alpha
