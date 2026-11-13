@@ -86,7 +86,7 @@ def test_clipped_color_preserves_base_coverage(
 
 
 @pytest.mark.parametrize("force", [False, True])
-def test_adjustment_clip_keeps_backdrop_alpha(
+def test_adjustment_clip_seed_is_opaque(
     force: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pytest.importorskip("scipy")
@@ -110,4 +110,23 @@ def test_adjustment_clip_keeps_backdrop_alpha(
     monkeypatch.setattr(compositor, "_apply_clip_layers", apply_clips)
     compositor.apply(layer)
     assert len(seeds) == 1
-    np.testing.assert_array_equal(seeds[0], alpha)
+    np.testing.assert_array_equal(seeds[0], np.ones_like(alpha))
+
+
+@pytest.mark.parametrize(
+    "name, photoshop_pixel",
+    [
+        # Pixels under the clip layer, at (row 100, col 160).
+        ("adjustment_clip_normal", (27, 77, 101, 128)),
+        ("adjustment_clip_huesaturation", (67, 81, 43, 128)),
+    ],
+)
+@pytest.mark.parametrize("force", [False, True])
+def test_adjustment_clip_photoshop(
+    name: str, photoshop_pixel: tuple[int, ...], force: bool
+) -> None:
+    psd = PSDImage.open(full_name(f"clipping-alpha/{name}.psd"))
+    actual = np.asarray(
+        psd.composite(ignore_preview=True, apply_icc=False, force=force), dtype=float
+    )
+    np.testing.assert_allclose(actual[100, 160], photoshop_pixel, atol=1, rtol=0)

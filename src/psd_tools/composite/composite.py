@@ -1819,7 +1819,10 @@ class Compositor:
 
         if layer.has_clip_layers():
             transformed_color = self._apply_clip_layers(
-                layer.clip_layers, transformed_color, self._alpha, base=layer
+                layer.clip_layers,
+                transformed_color,
+                np.ones_like(self._alpha),
+                base=layer,
             )
 
         shape_mask = self._get_mask(layer)
