@@ -700,6 +700,26 @@ def test_an_out_of_range_opacity_is_clamped(opacity: float) -> None:
     assert np.array_equal(rendered, _rendered(_setting(Key.Opacity, Double(bound))))
 
 
+def test_an_invisible_shadow_adds_nothing_to_the_group_shape() -> None:
+    """A shadow at 0% paints nothing, so it must not widen what a stroke traces."""
+    psd = PSDImage.new("RGB", (80, 80))
+    leaf = psd.create_pixel_layer(
+        Image.new("RGBA", (20, 20), (255, 255, 255, 255)), top=30, left=30
+    )
+    group = psd.create_group([leaf], name="Group")
+    _forge_shadow(group, Blur=0.0, Distance=10.0, Opacity=0.0)
+    height, width = psd.viewbox[3], psd.viewbox[2]
+    compositor = Compositor(
+        psd.viewbox,
+        np.ones((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+    compositor.apply(group)
+    shape = compositor.shape
+    assert not shape[:, :, 0][:, :].any() or shape[40:50, 40:50].all()
+    assert not shape[55:, :].any()
+
+
 @pytest.mark.parametrize("blur", [1e3, 1e9])
 def test_a_huge_size_does_not_grow_the_shadow_canvas(blur: float) -> None:
     """The canvas is the part that can reach the viewport, at Photoshop's largest size."""

@@ -104,6 +104,8 @@ _UNRECOGNISED = _BANDS[Enum.OutsetFrame]
 
 # The widest stroke Photoshop writes; a larger size can only be a forged one.
 _MAX_STROKE_SIZE = 250.0
+
+# The largest drop shadow size Photoshop offers.
 _MAX_SHADOW_SIZE = 250.0
 
 # What a stroke canvas costs per pixel at its peak: the signed-distance
@@ -529,13 +531,8 @@ def draw_stroke_effect_split(
 
 
 # How wide a gaussian stands in for the blur Photoshop gives a drop shadow of a
-# given size. Photoshop's blur is its own, so this is fitted rather than
-# derived. Measured against Photoshop's preview around every drop shadow in
-# the fixture corpus, the three documents whose shadows are wide enough to
-# tell (layer_effects.psd, masks.psb, layer_comps.psb) are each best between
-# 0.43 and 0.48, and the fourth (layer_params.psb, 5 px) barely moves. A third,
-# the usual rule of thumb, leaves the falloff too steep: around
-# layer_effects.psd's shadow it scores 4.0e-5 where this scores 4.3e-6.
+# given size. Photoshop's blur is its own, so this is fitted against the drop
+# shadows its preview renders in the fixture corpus, not derived.
 _SHADOW_SIGMA_PER_SIZE = 0.45
 
 # How many coverage levels spread grows a silhouette at, at most. A silhouette

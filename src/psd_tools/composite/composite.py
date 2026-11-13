@@ -1519,15 +1519,15 @@ class Compositor:
         """Whether this layer contributes to the composite at all.
 
         The cull measures ``_effect_reach()`` and not ``layer.bbox``, because
-        a stroke reaches outside the layer: a layer whose own box has cleared
-        the viewport can still paint the part of its stroke that falls back
-        inside, and rejecting it here would lose the stroke along with the
-        layer (#815). ``_stroke_reach()`` rather than ``_paint_bbox()`` because the
-        group half of that measurement is unreachable from here: a group is
-        exempt from the cull, so the box is only ever measured for a layer
-        that has no contents to recurse into. That is also why the
-        exemption is tested first -- the reach is not worth measuring for a
-        layer that is exempt from the test it feeds.
+        a stroke or drop shadow reaches outside the layer: a layer whose own
+        box has cleared the viewport can still paint the part of its effect
+        that falls back inside, and rejecting it here would lose the effect
+        along with the layer (#815). ``_effect_reach()`` rather than
+        ``_paint_bbox()`` because the group half of that measurement is
+        unreachable from here: a group is exempt from the cull, so the box is
+        only ever measured for a layer that has no contents to recurse into.
+        That is also why the exemption is tested first -- the reach is not
+        worth measuring for a layer that is exempt from the test it feeds.
 
         ``is_group()`` and not ``isinstance(layer, GroupMixin)``, for the
         reason ``Layer._invalidate_moved_bbox()`` and its neighbours already
@@ -2683,7 +2683,7 @@ class Compositor:
         mask = self._get_mask(layer, viewport)
         own = (
             self._get_group_shape(layer, viewport, alpha=True)
-            if isinstance(layer, GroupMixin)
+            if layer.is_group()
             else self._get_object_shape(layer, viewport)
         )
         return utils.clip(own * mask)
@@ -2734,7 +2734,7 @@ class Compositor:
             except _UNREADABLE as error:
                 logger.debug("Cannot measure a drop shadow of %s: %s", layer, error)
                 continue
-            if bbox == (0, 0, 0, 0):
+            if bbox == (0, 0, 0, 0) or effect_opacity * opacity <= 0.0:
                 continue
             silhouette = self._cast_shape(layer, bbox)
             try:
