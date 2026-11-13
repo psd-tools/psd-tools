@@ -496,6 +496,13 @@ def composite_pil(
     # a wrapped one. Note it does not make the cast total -- np.clip passes NaN
     # through -- so it is a narrowing of the damage, not a guarantee.
     pixels = np.clip(255 * color, 0, 255).astype(np.uint8)
+    if mode == "RGBA" and color_mode == ColorMode.RGB and psd_image.depth == 8:
+        # Float32 alpha unions can land just below 1; preserve the opaque
+        # endpoint without rounding RGB or genuine 8-bit transparency.
+        opaque = (alpha[:, :, 0] >= 1 - np.finfo(np.float32).eps) & (
+            alpha[:, :, 0] <= 1
+        )
+        pixels[:, :, 3][opaque] = 255
     if mode == "1":
         # `fromarray(uint8, "1")` does not mean "these bytes, as bilevel". PIL
         # takes the raw mode literally at one bit per pixel, so it consumes one
