@@ -235,6 +235,11 @@ class LayerProtocol(Protocol):
         ...
 
     @property
+    def effects_bbox(self) -> tuple[int, int, int, int]:
+        """(left, top, right, bottom) tuple containing the layer's effects."""
+        ...
+
+    @property
     def tagged_blocks(self) -> TaggedBlocks:
         """Tagged blocks associated with this layer."""
         ...
@@ -292,6 +297,7 @@ class LayerProtocol(Protocol):
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
+        include_effects: bool = False,
     ) -> Image.Image | None:
         """
         Composite the layer.
@@ -302,6 +308,7 @@ class LayerProtocol(Protocol):
         :param alpha: Backdrop alpha (float or ndarray).
         :param layer_filter: Layer filter callable.
         :param apply_icc: Whether to apply ICC profile conversion.
+        :param include_effects: Composite on the layer's effects_bbox.
         :return: PIL Image, or None if composition not available.
         """
         ...

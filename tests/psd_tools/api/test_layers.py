@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -6,6 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import psd_tools.composite  # noqa: F401
 from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
@@ -2169,3 +2171,96 @@ def test_a_document_that_received_a_layer_can_donate_one() -> None:
     assert layer in c
     assert c.tagged_blocks is not None
     assert Tag.PATTERNS1 in c.tagged_blocks
+
+
+def _painted_bbox(image: Image.Image, origin: tuple[int, int]) -> tuple[int, ...]:
+    box = image.getchannel("A").getbbox()
+    assert box is not None
+    left, top, right, bottom = box
+    return origin[0] + left, origin[1] + top, origin[0] + right, origin[1] + bottom
+
+
+def test_effects_bbox_contains_the_stroke_the_default_viewport_clips() -> None:
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
+    layer = PSDImage.open(full_name("effects/outside-stroke.psd"))[0]
+    assert layer.bbox == (8, 8, 24, 24)
+
+    default = layer.composite()
+    assert default is not None and default.size == (16, 16)
+
+    widened = layer.composite(include_effects=True)
+    assert widened is not None
+    left, top, right, bottom = layer.effects_bbox
+    assert widened.size == (right - left, bottom - top)
+    painted = _painted_bbox(widened, (left, top))
+    assert painted == (5, 5, 27, 27)
+    assert (
+        left <= painted[0]
+        and top <= painted[1]
+        and painted[2] <= right
+        and painted[3] <= bottom
+    )
+
+
+def test_effects_bbox_is_bbox_for_a_layer_with_no_reaching_effect() -> None:
+    psd = PSDImage.open(full_name("effects/drop-shadow-groups.psd"))
+    yellow = next(
+        layer for layer in psd.descendants() if layer.name == "group-normal-yellow"
+    )
+    assert yellow.effects_bbox == yellow.bbox
+
+
+def test_a_group_composites_on_its_effects_bbox() -> None:
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
+    psd = PSDImage.open(full_name("effects/drop-shadow-groups.psd"))
+    group = next(layer for layer in psd.descendants() if layer.name == "group-normal")
+    assert group.bbox == (40, 40, 104, 104)
+
+    image = group.composite(include_effects=True)
+    assert image is not None
+    assert group.composite() is not None and group.composite().size == (64, 64)  # type: ignore[union-attr]
+    assert image.size == (87, 90)
+
+
+def test_an_artboard_stays_its_own_rectangle_with_effects() -> None:
+    pytest.importorskip("aggdraw")
+    pytest.importorskip("scipy")
+    psd = PSDImage.open(full_name("artboard.psd"))
+    board = next(layer for layer in psd.descendants() if isinstance(layer, Artboard))
+    assert board.effects_bbox == board.bbox
+    image = board.composite(include_effects=True)
+    assert image is not None and image.size == board.composite().size  # type: ignore[union-attr]
+
+
+def test_effects_bbox_of_a_group_covers_its_children_effects() -> None:
+    psd = PSDImage.open(full_name("effects/group-clips-child-stroke.psd"))
+    group = next(layer for layer in psd.descendants() if layer.name == "Outset")
+    assert isinstance(group, Group)
+    child = group[0]
+    assert group.bbox == child.bbox
+    assert child.effects_bbox != child.bbox
+    assert group.effects_bbox == child.effects_bbox
+
+
+def test_an_artboards_own_effect_does_not_widen_its_effects_bbox(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    composite_module = sys.modules["psd_tools.composite.composite"]
+
+    psd = PSDImage.open(full_name("artboard.psd"))
+    board = next(layer for layer in psd.descendants() if isinstance(layer, Artboard))
+    left, top, right, bottom = board.bbox
+    monkeypatch.setattr(
+        composite_module,
+        "_effect_reach",
+        lambda layer, memo=None: (left - 9, top - 9, right + 9, bottom + 9),
+    )
+    assert board.effects_bbox == board.bbox
+
+
+def test_composite_rejects_viewport_with_include_effects() -> None:
+    layer = PSDImage.open(full_name("effects/outside-stroke.psd"))[0]
+    with pytest.raises(ValueError, match="viewport"):
+        layer.composite(viewport=layer.bbox, include_effects=True)
