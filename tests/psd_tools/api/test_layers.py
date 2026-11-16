@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -6,6 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import psd_tools.composite  # noqa: F401
 from psd_tools.api.layers import (
     AdjustmentLayer,
     Artboard,
@@ -2245,10 +2247,6 @@ def test_effects_bbox_of_a_group_covers_its_children_effects() -> None:
 def test_an_artboards_own_effect_does_not_widen_its_effects_bbox(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sys  # noqa: PLC0415
-
-    import psd_tools.composite  # noqa: F401, PLC0415
-
     composite_module = sys.modules["psd_tools.composite.composite"]
 
     psd = PSDImage.open(full_name("artboard.psd"))
