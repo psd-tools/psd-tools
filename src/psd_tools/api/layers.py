@@ -609,6 +609,8 @@ class Layer(LayerProtocol):
         """
         from psd_tools.composite.composite import _paint_bbox  # noqa: PLC0415
 
+        if isinstance(self, Artboard):
+            return self.bbox
         return _paint_bbox(self, {})
 
     def _composite_viewport(

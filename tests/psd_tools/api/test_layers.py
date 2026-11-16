@@ -2233,11 +2233,33 @@ def test_an_artboard_stays_its_own_rectangle_with_effects() -> None:
 
 
 def test_effects_bbox_of_a_group_covers_its_children_effects() -> None:
-    psd = PSDImage.open(full_name("effects/group-stroke-off-canvas.psd"))
-    inside = next(layer for layer in psd.descendants() if layer.name == "Inside")
-    left, top, right, bottom = inside.bbox
-    assert inside.effects_bbox[:2] <= (left - 1, top - 1)
-    assert inside.effects_bbox[2:] >= (right + 1, bottom + 1)
+    psd = PSDImage.open(full_name("effects/group-clips-child-stroke.psd"))
+    group = next(layer for layer in psd.descendants() if layer.name == "Outset")
+    assert isinstance(group, Group)
+    child = group[0]
+    assert group.bbox == child.bbox
+    assert child.effects_bbox != child.bbox
+    assert group.effects_bbox == child.effects_bbox
+
+
+def test_an_artboards_own_effect_does_not_widen_its_effects_bbox(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys  # noqa: PLC0415
+
+    import psd_tools.composite  # noqa: F401, PLC0415
+
+    composite_module = sys.modules["psd_tools.composite.composite"]
+
+    psd = PSDImage.open(full_name("artboard.psd"))
+    board = next(layer for layer in psd.descendants() if isinstance(layer, Artboard))
+    left, top, right, bottom = board.bbox
+    monkeypatch.setattr(
+        composite_module,
+        "_effect_reach",
+        lambda layer, memo=None: (left - 9, top - 9, right + 9, bottom + 9),
+    )
+    assert board.effects_bbox == board.bbox
 
 
 def test_composite_rejects_viewport_with_include_effects() -> None:
