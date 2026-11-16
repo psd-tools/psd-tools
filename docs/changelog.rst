@@ -4,6 +4,9 @@ Changelog
 1.26.2 (unreleased)
 -------------------
 
+- [api] Add ``Layer.effects_bbox``, the layer box grown to hold its rendered
+  strokes and drop shadows, and ``composite(include_effects=True)`` to
+  composite on it. The default viewport is unchanged (#797)
 - [fix] Clipped layers no longer over-attenuate the color of partially
   transparent pixel and group bases (#1057)
 - [fix] Layers clipped to an adjustment layer over a partially transparent

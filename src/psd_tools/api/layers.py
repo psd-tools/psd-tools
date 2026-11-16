@@ -596,6 +596,31 @@ class Layer(LayerProtocol):
         """(left, top, right, bottom) tuple."""
         return self.left, self.top, self.right, self.bottom
 
+    @property
+    def effects_bbox(self) -> tuple[int, int, int, int]:
+        """
+        (left, top, right, bottom) tuple containing the layer's effects.
+
+        :py:attr:`bbox` grown by the outward reach of each enabled effect that
+        :py:meth:`composite` renders, such as a stroke or a drop shadow. A group
+        also covers the effects of its children. The box is a conservative
+        envelope: it may hold transparent margin, and may widen as more effects
+        are rendered. Equal to :py:attr:`bbox` when no effect reaches outside it.
+        """
+        from psd_tools.composite.composite import _paint_bbox  # noqa: PLC0415
+
+        return _paint_bbox(self, {})
+
+    def _composite_viewport(
+        self, viewport: tuple[int, int, int, int] | None, include_effects: bool
+    ) -> tuple[int, int, int, int] | None:
+        if not include_effects:
+            return viewport
+        if viewport is not None:
+            raise ValueError("Pass either viewport or include_effects, not both.")
+        bbox = self.effects_bbox
+        return bbox if bbox[0] < bbox[2] and bbox[1] < bbox[3] else None
+
     def has_pixels(self) -> bool:
         """
         Whether the layer has associated pixels.
@@ -997,6 +1022,7 @@ class Layer(LayerProtocol):
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
+        include_effects: bool = False,
     ) -> Image.Image | None:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
@@ -1012,10 +1038,15 @@ class Layer(LayerProtocol):
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
+        :param include_effects: Use :py:attr:`effects_bbox` as the viewport, so
+            effects that paint outside the layer are kept. Default is False,
+            which keeps the output the size of :py:attr:`bbox`. Cannot be
+            combined with ``viewport``.
         :return: :py:class:`PIL.Image.Image` or `None`.
         """
         from psd_tools.composite import composite_pil  # noqa: PLC0415
 
+        viewport = self._composite_viewport(viewport, include_effects)
         if self._psd.is_updated():
             force = True
 
@@ -2337,6 +2368,7 @@ class Group(GroupMixin, Layer):
         alpha: float | np.ndarray = 0.0,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
+        include_effects: bool = False,
     ) -> Image.Image | None:
         """
         Composite layer and masks (mask, vector mask, and clipping layers).
@@ -2352,10 +2384,15 @@ class Group(GroupMixin, Layer):
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
             :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
+        :param include_effects: Use :py:attr:`effects_bbox` as the viewport, so
+            effects that paint outside the layer are kept. Default is False,
+            which keeps the output the size of :py:attr:`bbox`. Cannot be
+            combined with ``viewport``.
         :return: :py:class:`PIL.Image.Image`.
         """
         from psd_tools.composite import composite_pil  # noqa: PLC0415
 
+        viewport = self._composite_viewport(viewport, include_effects)
         return composite_pil(
             self,
             color,
@@ -2540,6 +2577,7 @@ class Artboard(Group):
         alpha: float | np.ndarray | None = None,
         layer_filter: Callable | None = None,
         apply_icc: bool = True,
+        include_effects: bool = False,
     ) -> Image.Image | None:
         """
         Composite layer, automatically applying the artboard's background color.
@@ -2547,7 +2585,8 @@ class Artboard(Group):
         When either ``color`` or ``alpha`` is not explicitly provided, reads
         the artboard background from the ARTBOARD_DATA tagged block
         (``artboardBackgroundType`` and ``Clr`` descriptor) and uses the
-        missing value or values as the compositing backdrop.
+        missing value or values as the compositing backdrop. See
+        :py:meth:`Group.composite` for the other parameters.
         """
         if color is None or alpha is None:
             artboard_color, artboard_alpha = self._artboard_background_defaults()
@@ -2564,6 +2603,7 @@ class Artboard(Group):
             alpha=alpha,
             layer_filter=layer_filter,
             apply_icc=apply_icc,
+            include_effects=include_effects,
         )
 
     def _artboard_background_defaults(
