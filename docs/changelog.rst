@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.26.2 (unreleased)
+1.27.0 (unreleased)
 -------------------
 
 - [api] Add ``Layer.effects_bbox``, the layer box grown to hold its rendered
