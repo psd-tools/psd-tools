@@ -2725,7 +2725,7 @@ class Artboard(Group):
 
         Unlike what :py:meth:`composite` applies, the result does not depend on
         the document color mode: the color is always RGB, so a custom color on
-        a CMYK or Lab document is reported rather than dropped. A missing,
+        a CMYK or Lab document is reported as RGB. A missing,
         malformed or unknown setting reads as transparent.
         """
         transparent = ArtboardBackground("transparent", None, 0.0)
@@ -2893,15 +2893,10 @@ class Artboard(Group):
                 )
                 return 1.0, 0.0
         elif bg_type == 4:  # Custom color (Clr descriptor, RGB 0-255)
-            clr = data.get(Key.Color)
-            if clr is None:
+            rgb = self.background.color
+            if rgb is None:
                 return 1.0, 0.0
-            rd = clr.get(Key.Red)
-            gn = clr.get(Key.Green)
-            bl = clr.get(Key.Blue)
-            if rd is None or gn is None or bl is None:
-                return 1.0, 0.0
-            r, g, b_val = float(rd) / 255.0, float(gn) / 255.0, float(bl) / 255.0
+            r, g, b_val = rgb
             if color_mode == ColorMode.RGB:
                 return (r, g, b_val), 1.0
             elif color_mode in (
@@ -2911,10 +2906,13 @@ class Artboard(Group):
             ):
                 lum = rgb_to_grayscale(r, g, b_val)
                 return lum, 1.0
+            elif color_mode in (ColorMode.CMYK, ColorMode.LAB):
+                from psd_tools.composite.paint import _from_rgb  # noqa: PLC0415
+
+                return _from_rgb(color_mode, (r, g, b_val)), 1.0
             else:
                 # NOTE: The Clr descriptor is always RGB regardless of document
-                # color mode. Conversion to CMYK, LAB, etc. is non-trivial and
-                # not implemented; those modes fall back to the transparent default.
+                # color mode; the remaining modes fall back to the transparent default.
                 logger.debug(
                     "Artboard background color not applied: unsupported color mode %s",
                     color_mode,
