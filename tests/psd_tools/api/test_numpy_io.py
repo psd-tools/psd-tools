@@ -451,3 +451,19 @@ def test_cactus_top_is_not_unmatted_on_an_undeclared_channel() -> None:
     assert image.mode == "RGB"
     preview = np.asarray(image).astype(np.float32) / 255.0
     assert np.array_equal(preview, color)
+
+
+def test_the_pattern_estimate_sizes_each_channel_by_its_own_rectangle() -> None:
+    n = 1000
+    pattern = _forged_pattern_of_size(n, 1, Compression.RAW)
+    written = [c for c in pattern.data.channels if c.is_written]
+    for i, c in enumerate(written):
+        c.rectangle = (0, 0, 1, n) if i % 2 == 0 else (0, 0, n, 1)
+        c.data = b"\x00" * n
+    budget = numpy_io._layer_read_peak_bytes(
+        n, 1, 8, len(written), numpy_io._DECOMPRESS_PEAK[Compression.RAW]
+    )
+    # The cross of the two axes is n x n pixels, far over this budget.
+    assert budget < n * n
+
+    assert numpy_io.get_pattern(pattern, budget).shape == (1, n, len(written))
