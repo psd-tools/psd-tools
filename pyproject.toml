@@ -49,7 +49,6 @@ test = [
 ]
 dev = [
     {include-group = "test"},
-    "ipykernel",
     "ruff",
     "mypy",
     "pre-commit",
