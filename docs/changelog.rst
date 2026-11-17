@@ -795,6 +795,10 @@ Changelog
 1.15.0.post1 (2026-04-14)
 --------------------------
 
+- [fix] A vector stroke whose width is stored in points is rendered at
+  points x resolution / 72 pixels instead of the bare number, so strokes on
+  non-72 dpi documents are no longer drawn too thin. ``Stroke.line_width``
+  still returns the stored number, now documented as such (#853)
 - [ci] Fix release packaging: version.py was not bumped in the v1.15.0 release PR, causing wheels to be built with the wrong version
 
 1.15.0 (2026-04-14)

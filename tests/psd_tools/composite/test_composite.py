@@ -1493,8 +1493,9 @@ def test_a_partly_opaque_stroke_fades_into_the_fill() -> None:
 def test_a_centered_vector_stroke_covers_both_sides_of_the_path() -> None:
     """A redrawn stroke is coverage of its own, and the cull counts it (#937).
 
-    The layer carries a 7 px *centered* stroke, so 3.5 px of it falls outside
-    the path. The viewport is padded past that on every side.
+    The layer carries a 7 pt *centered* stroke at 300 dpi, 30 px once rounded
+    up, so about 15 px of it falls outside the path. The viewport is padded past
+    that on every side.
     """
     psd = PSDImage.open(
         full_name("descriptors/stroke-color-descriptors-hsb-with-rgb-mode.psd")
@@ -1505,9 +1506,14 @@ def test_a_centered_vector_stroke_covers_both_sides_of_the_path() -> None:
     assert layer.stroke.line_alignment == "center"
 
     bbox = layer.bbox
-    assert _stroke_reach(layer) == (bbox[0] - 7, bbox[1] - 7, bbox[2] + 7, bbox[3] + 7)
+    assert _stroke_reach(layer) == (
+        bbox[0] - 30,
+        bbox[1] - 30,
+        bbox[2] + 30,
+        bbox[3] + 30,
+    )
 
-    pad = 12
+    pad = 20
     viewport = (bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad)
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
     compositor = Compositor(

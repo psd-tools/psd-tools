@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Generator
 from itertools import pairwise
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from PIL import Image
@@ -13,11 +13,29 @@ from psd_tools.composite import scanline
 from psd_tools.composite._compat import require_aggdraw
 from psd_tools.constants import StrokeAlignment
 from psd_tools.psd.vector import Knot
+from psd_tools.terminology import Unit
 
 if TYPE_CHECKING:
     from psd_tools.api.layers import Layer
 
 logger = logging.getLogger(__name__)
+
+
+_POINTS_PER_INCH = 72.0
+
+
+def stroke_width_px(desc: Any) -> float:
+    """A stroke descriptor's line width in pixels, 1.0 if it records none.
+
+    A width in points is scaled by the stroke's own ``strokeStyleResolution``
+    (pixels per inch); any other unit is taken as pixels already.
+    """
+    raw = desc.get("strokeStyleLineWidth", 1.0)
+    width = float(raw)
+    if getattr(raw, "unit", None) is Unit.Points:
+        resolution = float(desc.get("strokeStyleResolution", _POINTS_PER_INCH))
+        width *= resolution / _POINTS_PER_INCH
+    return width
 
 
 def draw_vector_mask(
@@ -114,7 +132,7 @@ def draw_stroke(
     #     'strokeStyleRoundJoin': 2,
     #     'strokeStyleBevelJoin': 3,
     # }
-    width = float(desc.get("strokeStyleLineWidth", 1.0))
+    width = stroke_width_px(desc)
     # linejoin = desc.get('strokeStyleLineJoinType', None)
     # linejoin = linejoin.enum if linejoin else 'strokeStyleMiterJoin'
     # linecap = desc.get('strokeStyleLineCapType', None)

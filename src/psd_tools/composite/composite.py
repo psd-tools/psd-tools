@@ -276,7 +276,7 @@ def _vector_stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     ):
         return bbox
     try:
-        width = max(math.ceil(float(stroke._data.get("strokeStyleLineWidth", 1.0))), 0)
+        width = max(math.ceil(vector.stroke_width_px(stroke._data)), 0)
     except (OverflowError, ValueError, TypeError):
         return bbox
     return (bbox[0] - width, bbox[1] - width, bbox[2] + width, bbox[3] + width)
@@ -2444,7 +2444,7 @@ class Compositor:
             raise ValueError("Layer does not have stroke data.")
         desc = layer.stroke._data
         try:
-            width = math.ceil(desc.get("strokeStyleLineWidth", 1.0))
+            width = math.ceil(vector.stroke_width_px(desc))
         except OverflowError as error:
             raise ValueError("Stroke width is not finite.") from error
         fill_bbox = cast(
