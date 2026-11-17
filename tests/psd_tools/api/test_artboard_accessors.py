@@ -87,6 +87,21 @@ def test_custom_background_composites_in_the_document_mode(mode: ColorMode) -> N
     assert psd.artboards[0].background == expected
 
 
+@pytest.mark.parametrize("mode", [ColorMode.RGB, ColorMode.CMYK, ColorMode.LAB])
+@pytest.mark.parametrize("red", [300, -1, float("nan"), float("inf")])
+def test_malformed_custom_color_composites_transparent(
+    mode: ColorMode, red: float
+) -> None:
+    psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
+    artboard = psd.artboards[0]
+    for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+        if key in artboard.tagged_blocks:
+            artboard.tagged_blocks.get_data(key)[b"Clr "][b"Rd  "] = Double(red)
+    psd._record.header.color_mode = mode
+    assert artboard.background == ArtboardBackground("transparent", None, 0.0)
+    assert artboard._artboard_background_defaults() == (1.0, 0.0)
+
+
 @pytest.mark.parametrize(
     "value",
     [Integer(9), Integer(0), None, Double(2.5), Double(3.9), Double(float("nan"))],

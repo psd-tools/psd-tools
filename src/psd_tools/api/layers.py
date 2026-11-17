@@ -2893,15 +2893,10 @@ class Artboard(Group):
                 )
                 return 1.0, 0.0
         elif bg_type == 4:  # Custom color (Clr descriptor, RGB 0-255)
-            clr = data.get(Key.Color)
-            if clr is None:
+            rgb = self.background.color
+            if rgb is None:
                 return 1.0, 0.0
-            rd = clr.get(Key.Red)
-            gn = clr.get(Key.Green)
-            bl = clr.get(Key.Blue)
-            if rd is None or gn is None or bl is None:
-                return 1.0, 0.0
-            r, g, b_val = float(rd) / 255.0, float(gn) / 255.0, float(bl) / 255.0
+            r, g, b_val = rgb
             if color_mode == ColorMode.RGB:
                 return (r, g, b_val), 1.0
             elif color_mode in (
