@@ -84,9 +84,8 @@ Once installed, use `Makefile`::
     make docs
 
 The default build does not report dead cross-references; only
-``sphinx-build -n`` does. There is no intersphinx mapping, so third-party
-types in annotations always count as dead. Compare the
-``not found: psd_tools.`` entries rather than the total.
+``sphinx-build -n`` does. Python, NumPy and Pillow types link through
+intersphinx, so the remaining ``not found`` entries are mostly first-party.
 
 Release Process
 ---------------
