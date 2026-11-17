@@ -161,14 +161,12 @@ def test_a_traced_shape_reads_its_interior_from_the_path_and_its_edge_from_pixel
 def test_a_partly_antialiased_shape_keeps_its_stroke_close() -> None:
     """``shape-fx2.psd`` is a polygon with a 4 px inset stroke (#799).
 
-    14% of its covered pixels are at partial alpha, all of them along the
-    antialiased edges of the polygon, so it is the one fixture the corpus
-    already had that can tell the coverage reading from the iso-contour one.
-    It is a polygon with a *fill opacity of zero*, so what covers it is the
-    effect and nothing else, and its alpha is Photoshop's own (#846).
+    Partial alpha lies along the antialiased polygon edges, so it tells the
+    coverage reading from the iso-contour one. Its *fill opacity is zero*, so
+    the effect alone covers it, and its alpha is Photoshop's own (#846).
 
-    The threshold is tight enough to separate the two boundary readings,
-    which the 0.01 used elsewhere would not be.
+    The threshold is tighter than the 0.01 used elsewhere, to separate the two
+    boundary readings.
     """
     check_composite_quality("effects/shape-fx2.psd", threshold=2e-4)
 
@@ -504,17 +502,13 @@ def test_second_stroke_traces_the_layer() -> None:
 def test_hard_edged_stroke_matches_photoshop(filename: str) -> None:
     """A stroke on a hard-edged mask lands where Photoshop puts it (#799).
 
-    Every file here is squares with no partial alpha anywhere, so the boundary
-    the stroke is measured from is a fact rather than a modelling choice. Every
-    straight run of the stroke then matches Photoshop to the bit, because a
-    ramp that is linear in distance is the exact area of a pixel cut by a
-    straight edge. What is left is the corner arcs, where that ramp is only an
-    approximation of a curved cut: a handful of pixels per file, which is why
-    this asserts a bound rather than equality. It is tight enough to separate
-    the band from an approximation of it, which the 0.01 used elsewhere would
-    not be. The two inset files have no arc to approximate at all,
-    an inset offset of a convex polygon being another polygon, and reproduce
-    Photoshop bit for bit.
+    Every file is squares with no partial alpha, so the boundary the stroke is
+    measured from is a fact, not a modelling choice. Straight runs match
+    Photoshop exactly, since a ramp linear in distance is the exact area of a
+    pixel cut by a straight edge. Only the corner arcs, where the ramp
+    approximates a curved cut, differ, hence a bound rather than equality; the
+    bound is tighter than the 0.01 used elsewhere. The inset files have no arcs
+    (an inset of a convex polygon is a polygon) and match exactly.
     """
     check_composite_quality(filename, threshold=1e-4)
 
