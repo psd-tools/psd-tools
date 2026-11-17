@@ -381,9 +381,11 @@ class BevelInfo(BaseElement):
             self.use_global_angle,
             self.direction,
         )
-        if self.version >= 2:
-            written += self.highlight_color.write(fp)
-            written += self.shadow_color.write(fp)
+        if self.version == 2:
+            if self.real_highlight_color is None or self.real_shadow_color is None:
+                raise ValueError("Bevel version 2 requires the real colors")
+            written += self.real_highlight_color.write(fp)
+            written += self.real_shadow_color.write(fp)
         return written
 
 

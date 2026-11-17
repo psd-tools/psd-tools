@@ -4,6 +4,10 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [fix] Writing a version 2 legacy bevel effect (``BevelInfo``) emits its real
+  highlight and shadow colours instead of repeating the plain ones. Only files
+  where the two differ were affected (#1095)
+
 - [api] Annotate the ``object``-typed fields of ``psd_tools.psd`` structures
   (``Curves.extra``, ``PlacedLayerData.warp``, ``Slices.data``, effect colours
   and others) with their real types. ``PlacedLayerData.warp`` now defaults to
