@@ -50,6 +50,10 @@ Then install `psd-tools` with development dependencies::
 
     uv sync --group dev --extra composite
 
+Install the git hooks (formatting, lint and type checks run on each commit)::
+
+    uv run pre-commit install
+
 Finally, run tests::
 
     uv run pytest
