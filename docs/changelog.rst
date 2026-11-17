@@ -5,8 +5,9 @@ Changelog
 -------------------
 
 - [fix] Writing a version 2 legacy bevel effect (``BevelInfo``) emits its real
-  highlight and shadow colours instead of repeating the plain ones. Only files
-  where the two differ were affected (#1095)
+  highlight and shadow colours instead of repeating the plain ones, and no
+  longer writes them for versions above 2, which ``read()`` never consumed.
+  A version 2 bevel without real colours raises ``ValueError`` (#1095)
 
 - [api] Annotate the ``object``-typed fields of ``psd_tools.psd`` structures
   (``Curves.extra``, ``PlacedLayerData.warp``, ``Slices.data``, effect colours

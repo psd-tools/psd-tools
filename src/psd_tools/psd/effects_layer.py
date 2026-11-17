@@ -360,6 +360,11 @@ class BevelInfo(BaseElement):
 
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
+        real_colors = None
+        if self.version == 2:
+            if self.real_highlight_color is None or self.real_shadow_color is None:
+                raise ValueError("Bevel version 2 requires the real colors")
+            real_colors = (self.real_highlight_color, self.real_shadow_color)
         written = write_fmt(fp, "Ii2I", self.version, self.angle, self.depth, self.blur)
         written += write_fmt(
             fp,
@@ -381,11 +386,9 @@ class BevelInfo(BaseElement):
             self.use_global_angle,
             self.direction,
         )
-        if self.version == 2:
-            if self.real_highlight_color is None or self.real_shadow_color is None:
-                raise ValueError("Bevel version 2 requires the real colors")
-            written += self.real_highlight_color.write(fp)
-            written += self.real_shadow_color.write(fp)
+        if real_colors is not None:
+            written += real_colors[0].write(fp)
+            written += real_colors[1].write(fp)
         return written
 
 

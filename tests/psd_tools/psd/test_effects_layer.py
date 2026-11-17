@@ -62,3 +62,10 @@ def test_bevel_info_v2_writes_real_colors() -> None:
 def test_bevel_info_v2_without_real_colors_raises() -> None:
     with pytest.raises(ValueError):
         BevelInfo(version=2).write(io.BytesIO())
+
+
+def test_bevel_info_v2_without_real_colors_writes_nothing() -> None:
+    f = io.BytesIO()
+    with pytest.raises(ValueError):
+        BevelInfo(version=2).write(f)
+    assert f.getvalue() == b""
