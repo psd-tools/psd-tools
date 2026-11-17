@@ -502,7 +502,7 @@ def test_second_stroke_traces_the_layer() -> None:
 def test_hard_edged_stroke_matches_photoshop(filename: str) -> None:
     """A stroke on a hard-edged mask lands where Photoshop puts it (#799).
 
-    Every file is squares with no partial alpha, so the boundary the stroke is
+    Every file holds squares with no partial alpha, so the boundary the stroke is
     measured from is a fact, not a modelling choice. Straight runs match
     Photoshop exactly, since a ramp linear in distance is the exact area of a
     pixel cut by a straight edge. Only the corner arcs, where the ramp
