@@ -1,5 +1,5 @@
 Changelog
-=========
+==
 
 1.27.0 (unreleased)
 -------------------
@@ -8,6 +8,11 @@ Changelog
   ``Artboard.background``, the stored background as an ``ArtboardBackground``
   (kind, RGB color, alpha) that does not depend on the document color mode.
   ``PSDImage.composite()`` is documented as spanning the whole canvas (#901)
+
+- [fix] A PSB file wider or taller than 30,000 px is no longer rejected by
+  ``numpy()``, ``topil()`` or ``composite()``; the per-axis limit is now
+  300,000 px for PSB and stays 30,000 px for PSD. ``max_alloc_bytes`` still
+  bounds memory (#930)
 
 - [fix] ``get_pattern()`` no longer over-rejects, under ``max_alloc_bytes``, a pattern
   whose channels declare different rectangles; each channel is sized by its own (#927)

@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 
 from psd_tools.api import numpy_io
-from psd_tools.api.utils import check_growth, check_pixel_size
+from psd_tools.api.utils import check_growth, check_pixel_size, dimension_limit
 from psd_tools.color_convert import (
     cmyk_to_rgb,
     gray_to_cmyk,
@@ -379,6 +379,7 @@ def draw_pattern_fill(
             budget,
             estimated_bytes=_resize_peak_bytes(panel, new_shape),
             warn=False,
+            max_dimension=dimension_limit(psd.version),
         )
         panel = _resize_panel(panel, new_shape)
 
@@ -407,6 +408,7 @@ def draw_pattern_fill(
                 + panel.nbytes
             ),
             warn=False,
+            max_dimension=dimension_limit(psd.version),
         )
     # Taken from the pattern's own slot layout rather than from its color mode.
     # A mode-keyed count is only ever right by coincidence -- when the mode's

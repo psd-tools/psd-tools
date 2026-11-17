@@ -24,16 +24,17 @@ _DEPTH_MAX: dict[int, int] = {1: 1, 8: 255, 16: 65535, 32: 4294967295}
 # suspiciously large allocations are visible without blocking legitimate work.
 WARN_PIXELS: int = 256 * 1024 * 1024
 
-# Hard dimension limits derived from the PSD specification.
-# PSD v1 (classic): each axis is capped at 30,000 px (spec §2: "1 to 30,000").
+# Per-axis limits from the specification: 1 to 30,000 px for PSD, 300,000 for PSB.
 MAX_DIMENSION_PSD: int = 30_000
-# Pixel-count product for reference (30,000 × 30,000 = 900,000,000 px).
+MAX_DIMENSION_PSB: int = 300_000
 MAX_PIXELS_PSD: int = MAX_DIMENSION_PSD * MAX_DIMENSION_PSD
-# PSB v2 (large document): the spec allows up to 300,000 × 300,000 px, but
-# enforcing that limit would still permit ~90-gigapixel allocations with no
-# meaningful memory protection. This constant records the spec value for
-# reference only; check_pixel_size applies MAX_DIMENSION_PSD to PSB files too.
-MAX_PIXELS_PSB: int = 300_000 * 300_000
+MAX_PIXELS_PSB: int = MAX_DIMENSION_PSB * MAX_DIMENSION_PSB
+
+
+def dimension_limit(version: int) -> int:
+    """Return the per-axis limit of a file ``version``: 1 is PSD, 2 is PSB."""
+    return MAX_DIMENSION_PSB if version == 2 else MAX_DIMENSION_PSD
+
 
 # Environment variable that seeds MAX_ALLOC_BYTES at import time.
 MAX_ALLOC_BYTES_ENV: str = "PSD_TOOLS_MAX_ALLOC_BYTES"
@@ -164,17 +165,16 @@ def check_pixel_size(
     max_alloc_bytes: AllocBudget | None = None,
     estimated_bytes: int | None = None,
     warn: bool = True,
+    max_dimension: int | None = None,
 ) -> None:
     """Warn and/or raise when canvas dimensions exceed safe thresholds.
 
-    Raises :class:`ValueError` when either axis exceeds
-    :data:`MAX_DIMENSION_PSD` (the PSD v1 spec limit of 30,000 px per axis).
-    Both PSD (v1) and PSB (v2) files are checked against this limit; PSB's
-    own spec limit (:data:`MAX_PIXELS_PSB`) would allow ~90-gigapixel
-    allocations so it is kept as a reference constant only.
+    Raises :class:`ValueError` when either axis exceeds ``max_dimension``,
+    which is the limit of the file's version (see :func:`dimension_limit`).
+    The byte budget, not this limit, is the main protection.
 
     Issues a :class:`PSDLargeImageWarning` for pixel counts above
-    :data:`WARN_PIXELS` that are still within the per-axis spec limit.
+    :data:`WARN_PIXELS` that are still within the per-axis limit.
 
     Also raises :class:`ValueError` if the estimated allocation exceeds the
     budget that :func:`resolve_alloc_budget` gives for ``max_alloc_bytes``.
@@ -212,13 +212,14 @@ def check_pixel_size(
     :param warn: issue :class:`PSDLargeImageWarning` above :data:`WARN_PIXELS`.
         The per-layer guards pass ``False`` so a composite of large layers warns
         once, for the canvas, rather than once per layer.
+    :param max_dimension: per-axis limit; defaults to the PSD one.
     """
     if width < 1 or height < 1:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}.")
-    if width > MAX_DIMENSION_PSD or height > MAX_DIMENSION_PSD:
+    limit = MAX_DIMENSION_PSD if max_dimension is None else max_dimension
+    if width > limit or height > limit:
         raise ValueError(
-            f"Image {width}x{height} exceeds the PSD maximum of "
-            f"{MAX_DIMENSION_PSD} px per axis."
+            f"Image {width}x{height} exceeds the maximum of {limit} px per axis."
         )
     pixels = width * height
     if warn and pixels > WARN_PIXELS:

@@ -149,6 +149,7 @@ def stroke_bbox(
     bbox: tuple[int, int, int, int],
     desc: Descriptor,
     max_alloc_bytes: AllocBudget | None = None,
+    max_dimension: int | None = None,
 ) -> tuple[int, int, int, int]:
     """The canvas :py:func:`draw_stroke_effect` needs to draw a stroke on.
 
@@ -199,6 +200,7 @@ def stroke_bbox(
             width,
             height,
             max_alloc_bytes=max_alloc_bytes,
+            max_dimension=max_dimension,
             estimated_bytes=width * height * per_pixel,
             warn=False,
         )
@@ -574,6 +576,7 @@ def drop_shadow_bbox(
     viewport: tuple[int, int, int, int] | None = None,
     spread: float = 0.0,
     max_alloc_bytes: AllocBudget | None = None,
+    max_dimension: int | None = None,
 ) -> tuple[int, int, int, int]:
     """The canvas :py:func:`draw_drop_shadow` needs to draw a shadow on.
 
@@ -626,6 +629,7 @@ def drop_shadow_bbox(
         width,
         height,
         max_alloc_bytes=max_alloc_bytes,
+        max_dimension=max_dimension,
         estimated_bytes=width * height * per_pixel,
         warn=False,
     )

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from PIL import Image
 
-from psd_tools.api.utils import check_pixel_size
+from psd_tools.api.utils import check_pixel_size, dimension_limit
 from psd_tools.composite import scanline
 from psd_tools.composite._compat import require_aggdraw
 from psd_tools.constants import StrokeAlignment
@@ -321,6 +321,7 @@ def _silhouette_distance(
         layer._psd._max_alloc_bytes,
         estimated_bytes=width * height * _NEAR_SILHOUETTE_BYTES + held_bytes,
         warn=False,
+        max_dimension=dimension_limit(layer._psd.version),
     )
     mask = (
         _draw_path(layer, brush={"color": 255}, viewport=padded, closed_only=True)

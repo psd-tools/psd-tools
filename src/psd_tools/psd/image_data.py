@@ -14,6 +14,7 @@ from typing import IO, Any, Self
 from attrs import define, field
 
 from psd_tools.compression import (
+    _MAX_DIMENSION,
     compress,
     decompress,
     decompressed_size_bound,
@@ -112,6 +113,7 @@ class ImageData(BaseElement):
             header.depth,
             header.version,
             max_output_bytes=max_output_bytes,
+            max_height=_MAX_DIMENSION * header.channels,
         )
         if split:
             plane_size = len(data) // header.channels

@@ -106,9 +106,9 @@ def test_layer_guard_does_not_warn_per_layer(monkeypatch):
 def test_layer_dimension_over_psd_maximum_rejected(monkeypatch):
     monkeypatch.setattr("psd_tools.api.utils.MAX_DIMENSION_PSD", 10)
     layer = _rgb_layer()
-    with pytest.raises(ValueError, match="exceeds the PSD maximum"):
+    with pytest.raises(ValueError, match="per axis"):
         layer.numpy("color")
-    with pytest.raises(ValueError, match="exceeds the PSD maximum"):
+    with pytest.raises(ValueError, match="per axis"):
         layer.topil()
 
 
