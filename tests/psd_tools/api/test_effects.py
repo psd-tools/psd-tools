@@ -547,9 +547,9 @@ def test_scale_answers_where_there_is_no_block() -> None:
     block and one without agree.
     """
     psd = PSDImage.open(full_name("hidden-groups.psd"))
-    # Selected on block presence, not on ``has_effects()``: since #845 that
-    # asks what the fx list shows, which is a different question from the
-    # ``self._data is None`` guard this test is about.
+    # Selected on block presence, not on ``has_effects()``, which asks what the
+    # fx list shows: a different question from the ``self._data is None`` guard
+    # this test is about (#845).
     plain = next(
         layer
         for layer in psd.descendants()

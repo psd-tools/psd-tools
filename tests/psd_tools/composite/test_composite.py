@@ -623,13 +623,12 @@ def test_composite_flattened_indexed_is_bounded_by_the_numpy_guard() -> None:
     this document -- it short-circuits to ``topil()`` when an unmodified
     document has a preview, which is guarded separately in ``pil_io``.
 
-    The number that binds is the ``numpy()`` guard's, and since #767 that is a
-    model of what the read peaks at rather than the 192-byte array it returns:
-    the palette-expanded result, the packed buffer it was built from and
-    ``_parse_array()``'s own temporaries are all live at once, some 28 bytes a
-    pixel in total. ``composite()``'s own estimate keeps the returned-size
-    spelling and stays at 192, so it is the narrower of the two here and never
-    the one that fires.
+    The number that binds is the ``numpy()`` guard's, a model of what the read
+    peaks at rather than the array it returns (#767): the palette-expanded
+    result, the packed buffer it was built from and ``_parse_array()``'s own
+    temporaries are all live at once. ``composite()``'s own estimate is the
+    returned size, so it is the narrower of the two here and never the one that
+    fires.
     """
     name = "colormodes/4x4_8bit_index_color.psd"
     assert len(PSDImage.open(full_name(name))) == 0  # flattened: early return
@@ -837,9 +836,8 @@ def test_composite_cmyk_still_blends_where_multichannel_no_longer_does(
 
     That CMYK still blends is all this pins; what it blends *to* is pinned
     against Photoshop by ``test_blend.test_non_separable_matches_photoshop_on_cmyk``.
-    Until #781 the distinction mattered a great deal -- the four-channel branch
-    collapsed every mode to a constant, so this test passed on output that was
-    wrong in every pixel.
+    A four-channel branch that collapsed every mode to a constant would pass
+    this test on output wrong in every pixel (#781).
     """
     psd = PSDImage.open(full_name("colormodes/4x4_8bit_cmyk.psd"))
     assert psd.color_mode == ColorMode.CMYK
@@ -935,7 +933,7 @@ def test_composite_pil_multichannel_force_agrees_with_no_force() -> None:
 
     Without ``force`` the alpha is deferred and applied by ``post_process()``;
     with it, the alpha is concatenated up front. Either way the visible plane is
-    the first spot channel, and before #729 only one of them was.
+    the first spot channel on both (#729).
     """
     psd = PSDImage.open(full_name("colormodes/4x4_16bit_multichannel.psd"))
     forced = psd.composite(ignore_preview=True, force=True, apply_icc=False)
@@ -1582,10 +1580,9 @@ def test_stroke_survives_a_viewport_the_layer_box_misses() -> None:
     Asserting the render and not the decision, because accepting the layer is
     only half of it: ``_trace_shape()`` then has to re-read the layer's
     coverage on a box this compositor's viewport does not contain (#804).
-    Here that second half is load-bearing rather than merely present -- with
-    the pre-#804 trace, which reuses the compositor's clipped copy, the
-    layer's coverage on this viewport is entirely zero, no band is drawn, and
-    the render comes back empty.
+    Here that second half is load-bearing: a trace that reuses the
+    compositor's clipped copy sees zero coverage on this viewport, draws no
+    band, and renders empty.
 
     The band is the left side of the outset stroke: red, three columns wide.
     Column 4 is the pixel ``stroke_bbox()`` adds to locate the layer's edge
@@ -2371,14 +2368,13 @@ def test_group_contents_are_measured_once_per_composite(
     ``_paint_bbox()`` is the probe rather than the ``_stroke_reach()`` inside
     it, because the memo under test is ``_content_bbox()``'s and
     ``_content_bbox()`` is ``_paint_bbox()``'s only caller. ``_stroke_reach()``
-    has a second one since #815 -- the viewport cull calls it per layer -- so
+    has a second one -- the viewport cull calls it per layer (#815) -- so
     counting it would fold the cull's calls into a number that is meant to
     measure the memo alone.
 
     Counted rather than timed, because the wall-clock difference is noise at
-    any depth a real document reaches -- the deepest nesting in the whole
-    fixture corpus is 5 -- and a timing assertion would be flaky without
-    measuring anything the call count does not.
+    any depth a real document reaches, and a timing assertion would be flaky
+    without measuring anything the call count does not.
     """
     # By name, because ``psd_tools.composite.composite`` as an attribute is the
     # re-exported ``composite()`` function, not the module holding it.

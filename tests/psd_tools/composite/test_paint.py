@@ -98,10 +98,9 @@ def test_get_color_width_is_legal_for_every_mode(
     """Every descriptor class resolves to a width the compositor accepts.
 
     ``_assert_source_fits()`` allows a single channel or exactly the document's
-    count. Before #730 this failed for 19 of these 40 pairs -- an RGB, CMYK or
-    Lab descriptor on a bitmap, duotone or multichannel document, a CMYK one on
-    an indexed or Lab document, a Lab one on a grayscale or CMYK document, and
-    an HSB one on anything but RGB or CMYK, which raised instead.
+    count. A descriptor space that differs from the document's, such as an RGB
+    descriptor on a bitmap or multichannel document, must still resolve to one
+    of the two widths, never raise.
     """
     width = len(_get_color(color_mode, desc))
     if color_mode == ColorMode.MULTICHANNEL:
@@ -306,8 +305,8 @@ def test_white_fill_is_white_on_a_cmyk_document(
 def test_cmyk_fill_lightness_survives_the_round_trip() -> None:
     """The canvas and the PIL exit must agree on which way the axis runs.
 
-    A monotonic check on its own would pass with the polarity reversed -- it
-    did, before #747 -- so this pins the rendered greys themselves.
+    A monotonic check on its own would pass with the polarity reversed, so this
+    pins the rendered greys themselves (#747).
     """
     seen = []
     for gray in (0.0, 50.0, 100.0):
@@ -366,9 +365,8 @@ def test_lab_descriptor_matches_photoshops_own_bytes() -> None:
 
     The residue is Photoshop's, not ours: its own slope is 254/255, putting
     ``a = 127`` on byte 254 where the offset encoding PIL mode "LAB" documents
-    puts it on 255. Copying that would buy under half a code value here and
-    cost the same against any ImageCms decode, so the tolerance carries it
-    instead.
+    puts it on 255. Copying that would cost the same against any ImageCms
+    decode, so the tolerance carries it instead.
     """
     psd = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
     assert psd.color_mode == ColorMode.LAB
@@ -746,10 +744,9 @@ def _noise_desc(
     return desc
 
 
-# The three Photoshop offers. Measured 2026-08-28 against Photoshop 2026: it
-# rewrites anything else to ``RGBC`` -- a ``CMYC`` request came back ``RGBC``
-# even in a CMYK document -- but keeps all three of these in every document
-# mode, so none of them is tied to the document's own space.
+# The three Photoshop offers. Photoshop rewrites any other space to ``RGBC``,
+# even in a CMYK document, but keeps these in every document mode, so none is
+# tied to the document's own space.
 NOISE_SPACES = [Enum.RGBColor.value, Enum.HSBColor.value, Enum.LabColor.value]
 
 

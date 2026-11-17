@@ -645,7 +645,7 @@ def test_numpy_guard_model_covers_every_fixture_and_channel(
     """No shipped fixture may be rejected at a budget its own model admits.
 
     The corpus sweep: every colour mode and all four depths -- bitmap included,
-    since #737 gave the estimate a depth term; see the depth-1 section below for
+    because the estimate has a depth term (#737); see the depth-1 section below for
     what that has to get right.
 
     Swept over ``channel`` as well, because the model has to describe whichever
