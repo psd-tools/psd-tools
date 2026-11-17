@@ -65,8 +65,8 @@ def _clamp01(value: float) -> float:
     """Clamp an unconstrained descriptor component to [0, 1], NaN to 0.0 (#757).
 
     Applied where the untrusted number enters, because ``utils.clip()`` runs
-    too late once the color is blended. NaN survives ``max`` only in the second
-    position, so do not reverse the arguments.
+    too late once the color is blended. ``max`` keeps its first argument when
+    a comparison with NaN is false, so the bound goes first; do not reverse it.
     """
     return min(1.0, max(0.0, value))
 
