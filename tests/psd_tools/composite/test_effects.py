@@ -334,7 +334,7 @@ def test_centered_stroke_reach_matches_photoshop() -> None:
     1, 2, 3, 5 and 7 px. Every side of every square is checked against the same
     measurement taken from Photoshop's own render of the file, so this pins the
     whole progression rather than a single size: a truncated dilation radius
-    is correct at some widths and wrong at the odd ones.
+    is correct at the small widths and wrong at the larger odd ones.
     """
     psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
     preview = psd.topil()
