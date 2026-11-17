@@ -467,3 +467,13 @@ def test_the_pattern_estimate_sizes_each_channel_by_its_own_rectangle() -> None:
     assert budget < n * n
 
     assert numpy_io.get_pattern(pattern, budget).shape == (1, n, len(written))
+
+
+def test_the_pattern_axis_limit_holds_when_channels_declare_their_own() -> None:
+    pattern = _forged_pattern_of_size(utils.MAX_DIMENSION_PSD + 1, 1, Compression.RAW)
+    for c in pattern.data.channels:
+        if c.is_written:
+            c.rectangle = (0, 0, 2, 2)
+            c.data = b"\x00" * 4
+    with pytest.raises(ValueError, match="per axis"):
+        numpy_io.get_pattern(pattern)

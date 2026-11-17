@@ -450,6 +450,9 @@ def _check_pattern_read(
             )
     depth = max(c.depth if c.depth in _PARSE_TRANSIENT else 32 for c in written)  # type: ignore[type-var]
     decompress = max(_DECOMPRESS_PEAK[c.compression] for c in written)
+    # The output is reshaped to the pattern's own rectangle, so its axes are
+    # bounded even when every channel declares another.
+    check_pixel_size(width, height, estimated_bytes=0, warn=False)
     # Each channel is decoded against its own rectangle, so each is sized by it;
     # one axis from one channel and the other from another is a size none has.
     for c in written:
