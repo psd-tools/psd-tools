@@ -444,12 +444,6 @@ def _check_pattern_read(
     written = [c for c in pattern.data.channels if c.is_written]
     if not written:
         return
-    # A record's declared sizes are the file's; the widest of them is what the
-    # decode can be made to allocate.
-    for c in written:
-        if c.rectangle:
-            width = max(width, c.rectangle[3] - c.rectangle[1])
-            height = max(height, c.rectangle[2] - c.rectangle[0])
     # The decode reads `depth` and the parse reads `pixel_depth`. Unequal, the
     # parse yields more values than the estimate models, so neither is trusted.
     for c in written:
@@ -459,23 +453,31 @@ def _check_pattern_read(
                 f"depth {c.pixel_depth}."
             )
     depth = max(c.depth if c.depth in _PARSE_TRANSIENT else 32 for c in written)  # type: ignore[type-var]
-    check_pixel_size(
-        width,
-        height,
-        len(written),
-        max_alloc_bytes=max_alloc_bytes,
-        estimated_bytes=_layer_read_peak_bytes(
-            width,
-            height,
-            depth,
+    decompress = max(_DECOMPRESS_PEAK[c.compression] for c in written)
+    # The output is reshaped to the pattern's own rectangle, so its axes are
+    # bounded even when every channel declares another.
+    check_pixel_size(width, height, estimated_bytes=0, warn=False)
+    # Each channel is decoded against its own rectangle, so each is sized by it;
+    # one axis from one channel and the other from another is a size none has.
+    for c in written:
+        w, h = width, height
+        if c.rectangle:
+            w, h = c.rectangle[3] - c.rectangle[1], c.rectangle[2] - c.rectangle[0]
+        check_pixel_size(
+            w,
+            h,
             len(written),
-            max(_DECOMPRESS_PEAK[c.compression] for c in written),
-            row_objects=max(
-                decompress_row_peak_bytes(c.compression, height) for c in written
+            max_alloc_bytes=max_alloc_bytes,
+            estimated_bytes=_layer_read_peak_bytes(
+                w,
+                h,
+                depth,
+                len(written),
+                decompress,
+                row_objects=decompress_row_peak_bytes(c.compression, h),
             ),
-        ),
-        warn=False,
-    )
+            warn=False,
+        )
 
 
 def get_pattern(
