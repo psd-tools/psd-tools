@@ -126,6 +126,10 @@ convention = "pep257"
 [tool.mypy]
 files = ["src/psd_tools", "tests", "tools", "docs/conf.py"]
 
+[[tool.mypy.overrides]]
+module = ["IPython.*"]
+ignore_missing_imports = true
+
 [tool.cibuildwheel]
 archs = "auto64"
 # Skip testing during wheel builds - tests are already run in CI test workflow
