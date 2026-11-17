@@ -1,8 +1,10 @@
 """Layer duplication and serialization tests."""
 
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
+import attrs
 import numpy as np
 import pytest
 from PIL import Image
@@ -17,6 +19,7 @@ from psd_tools.api.layers import (
     TypeLayer,
 )
 from psd_tools.constants import BlendMode, Resource, Tag
+from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResource, Integer
 from psd_tools.psd.tagged_blocks import TaggedBlock
 from tests.conftest import skip_without_composite
@@ -54,7 +57,11 @@ def test_duplicate_preserves_layer_type_and_data(filename: str) -> None:
     assert duplicate.parent is psd
     assert duplicate._psd is psd
     assert duplicate.name == source.name
-    assert duplicate.bbox == source.bbox
+    if isinstance(source, Artboard):
+        left, top, right, bottom = source.bbox
+        assert duplicate.bbox == (right + 100, top, right + 100 + right - left, bottom)
+    else:
+        assert duplicate.bbox == source.bbox
     assert duplicate.opacity == source.opacity
     assert duplicate.visible == source.visible
     assert duplicate.blend_mode == source.blend_mode
@@ -565,3 +572,180 @@ def test_duplicate_into_removed_group_is_rejected(explicit: bool) -> None:
     assert psd.image_resources.get_data(Resource.IDS_SEED_NUMBER) == seed
     assert list(group) == [child]
     assert list(psd) == [other]
+
+
+IGNORED_FIELDS = (
+    "LAYER_ID",
+    "layerTime",
+    "UNICODE_LAYER_NAME",
+    ".name",
+    "TextIndex",
+    "placed.value",
+)
+
+
+def _leaves(node: object, path: str = "") -> dict[str, object]:
+    if isinstance(node, Descriptor):
+        items = [
+            (f"/{k.decode() if isinstance(k, bytes) else k}", v)
+            for k, v in node.items()
+        ]
+    elif isinstance(node, (List, list, tuple)):
+        items = [(f"[{i}]", v) for i, v in enumerate(node)]
+    elif attrs.has(type(node)):
+        items = [
+            (f".{f.name}", getattr(node, f.name))
+            for f in attrs.fields(type(node))  # type: ignore[arg-type]
+        ]
+    elif hasattr(node, "items"):
+        items = [(f"/{getattr(k, 'name', k)}", v) for k, v in node.items()]  # type: ignore[attr-defined]
+    else:
+        return {path: node}
+    result: dict[str, object] = {}
+    for suffix, value in items:
+        result.update(_leaves(value, path + suffix))
+    return result
+
+
+def _differences(copy: Layer, reference: Layer) -> list[str]:
+    ours, theirs = _leaves(copy._record), _leaves(reference._record)
+    found = []
+    for key in sorted(set(ours) | set(theirs)):
+        if any(ignored in key for ignored in IGNORED_FIELDS):
+            continue
+        a, b = ours.get(key), theirs.get(key)
+        if isinstance(a, float) and isinstance(b, float):
+            if abs(a - b) < 1e-6:
+                continue
+        elif a == b:
+            continue
+        found.append(f"{key}: {a!r} != {b!r}")
+    return found
+
+
+def test_artboard_duplicate_matches_photoshops_copy() -> None:
+    """``artboard-duplicate.psd`` holds an artboard and Photoshop's own copy of it.
+
+    The artboard holds a pixel layer with a mask, a path shape, a shape-tool
+    rectangle, a smart object and a text layer. The copy was moved by (500, 200)
+    after Duplicate Layer; the source sits at the origin. The smart object's embedded
+    file is replaced by a small PSD to keep the fixture small.
+    """
+    psd = PSDImage.open(full_name("artboard-duplicate.psd"))
+    source, photoshop_copy = psd.artboards
+    assert photoshop_copy.bbox == (500, 200, 900, 500)
+
+    copy = source.duplicate(offset=(500, 200))
+
+    assert copy.bbox == photoshop_copy.bbox
+    assert _differences(copy, photoshop_copy) == []
+    assert len(copy) == len(photoshop_copy) == 7
+    for ours, theirs in zip(copy, photoshop_copy, strict=True):
+        assert _differences(ours, theirs) == [], ours.name
+    assert source.bbox == (0, 0, 400, 300)
+
+
+def test_artboard_duplicate_defaults_to_a_100_pixel_gap_on_the_right() -> None:
+    psd = PSDImage.open(full_name("artboard-duplicate.psd"))
+    source = psd.artboards[0]
+    before = source._record.tobytes()
+    copy = source.duplicate()
+    assert copy.bbox == (500, 0, 900, 300)
+    assert copy.top == source.top
+    assert source._record.tobytes() == before
+    assert source.bbox == (0, 0, 400, 300)
+
+
+def test_artboard_duplicate_zero_offset_keeps_the_source_rectangle() -> None:
+    psd = PSDImage.open(full_name("artboard-duplicate.psd"))
+    source = psd.artboards[0]
+    copy = source.duplicate(offset=(0, 0))
+    assert copy.bbox == source.bbox
+    assert _differences(copy, source) == []
+    for ours, theirs in zip(copy, source, strict=True):
+        assert _differences(ours, theirs) == []
+
+
+def test_artboard_duplicate_ignores_neighbours() -> None:
+    psd = PSDImage.open(full_name("artboard-duplicate.psd"))
+    first = psd.artboards[0].duplicate()
+    second = psd.artboards[0].duplicate()
+    assert first.bbox == second.bbox == (500, 0, 900, 300)
+
+
+@pytest.mark.parametrize("offset", [(0, 0), (30, -40), (-250, 7)])
+def test_duplicate_offset_moves_a_group_with_its_descendants(
+    offset: tuple[int, int],
+) -> None:
+    psd = PSDImage.open(full_name("artboard-duplicate.psd"))
+    source = psd.artboards[0]
+    copy = source.duplicate(offset=offset)
+    for ours, theirs in zip(copy.descendants(), source.descendants(), strict=True):
+        if theirs.bbox == (0, 0, 0, 0):
+            assert ours.bbox == theirs.bbox
+            continue
+        assert ours.bbox == (
+            theirs.bbox[0] + offset[0],
+            theirs.bbox[1] + offset[1],
+            theirs.bbox[2] + offset[0],
+            theirs.bbox[3] + offset[1],
+        )
+
+
+def test_duplicate_offset_applies_to_an_ordinary_layer() -> None:
+    psd = PSDImage.new("RGB", (20, 20))
+    source = psd.create_pixel_layer(Image.new("RGB", (4, 4), "red"))
+    source.create_mask(Image.new("L", (4, 4), 128))
+    assert source.duplicate().offset == source.offset
+    copy = source.duplicate(offset=(5, 6))
+    assert copy.offset == (source.left + 5, source.top + 6)
+    assert copy.mask is not None and source.mask is not None
+    assert copy.mask.bbox == (
+        source.mask.left + 5,
+        source.mask.top + 6,
+        source.mask.right + 5,
+        source.mask.bottom + 6,
+    )
+    assert source.offset == (0, 0)
+
+
+@pytest.mark.parametrize("offset", [(1,), (1, 2, 3), (1.5, 0), ("1", 0), (True, 0), 5])
+def test_duplicate_rejects_an_invalid_offset(offset: object) -> None:
+    psd = PSDImage.new("RGB", (4, 4))
+    layer = psd.create_pixel_layer(Image.new("RGB", (2, 2), "red"))
+    with pytest.raises(TypeError, match="offset"):
+        layer.duplicate(offset=offset)  # type: ignore[arg-type]
+    assert len(psd) == 1
+
+
+@pytest.mark.composite
+@skip_without_composite
+def test_artboard_duplicate_roundtrips_and_renders_like_the_source(
+    tmp_path: Path,
+) -> None:
+    psd = PSDImage.open(full_name("artboard-duplicate.psd"))
+    source = psd.artboards[0]
+    copy = source.duplicate(name="Moved")
+    expected = copy.composite()
+    assert expected is not None
+    reference = source.composite()
+    assert reference is not None
+    assert expected.size == reference.size
+    assert expected.tobytes() == reference.tobytes()
+
+    path = tmp_path / "moved.psd"
+    psd.save(path)
+    reopened = PSDImage.open(path)
+    saved = reopened.find("Moved")
+    assert isinstance(saved, Artboard)
+    assert saved.bbox == (500, 0, 900, 300)
+
+
+def test_duplicate_offset_accepts_numpy_integers_and_rejects_overflow() -> None:
+    psd = PSDImage.new("RGB", (20, 20))
+    layer = psd.create_pixel_layer(Image.new("RGB", (4, 4), "red"))
+    numpy_offset: Any = (np.int64(3), np.int32(4))
+    assert layer.duplicate(offset=numpy_offset).offset == (3, 4)
+    with pytest.raises(ValueError, match="offset"):
+        layer.duplicate(offset=(2**31, 0))
+    assert len(psd) == 2
