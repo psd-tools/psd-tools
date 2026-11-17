@@ -333,9 +333,8 @@ def test_centered_stroke_reach_matches_photoshop() -> None:
     ``center-stroke-sizes.psd`` holds five squares carrying centered strokes of
     1, 2, 3, 5 and 7 px. Every side of every square is checked against the same
     measurement taken from Photoshop's own render of the file, so this pins the
-    whole progression rather than a single size -- the defect it covers was a
-    truncated dilation radius, which was correct at 1, 2 and 4 px and wrong at
-    every odd size above.
+    whole progression rather than a single size: a truncated dilation radius
+    is correct at the small widths and wrong at the larger odd ones.
     """
     psd = PSDImage.open(full_name("effects/center-stroke-sizes.psd"))
     preview = psd.topil()
@@ -1495,7 +1494,7 @@ def test_an_unreadable_stroke_enum_draws_as_an_unrecognised_one(
 
 
 def test_an_unrecognised_stroke_position_draws_as_an_outset_one() -> None:
-    """The widest of the three, which is the one already measured for (#799).
+    """The widest of the three (#799).
 
     Outset rather than either of the others because :py:func:`stroke_bbox`
     reserves the outset reach for a position it cannot read, so this is the
