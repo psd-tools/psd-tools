@@ -1,5 +1,6 @@
 """Layer duplication and serialization tests."""
 
+import warnings
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -22,6 +23,7 @@ from psd_tools.constants import BlendMode, Resource, Tag
 from psd_tools.psd.descriptor import Descriptor, List
 from psd_tools.psd.image_resources import ImageResource, Integer
 from psd_tools.psd.tagged_blocks import TaggedBlock
+from psd_tools.psd.vector import ClipboardRecord
 from tests.conftest import skip_without_composite
 
 from ..utils import full_name
@@ -776,3 +778,19 @@ def test_duplicate_offset_leaves_layer_relative_masks_alone(relative: bool) -> N
     assert copy._record.mask_data is not None
     assert copy._record.mask_data.left == (data.left if relative else data.left + 5)
     assert copy.left == source.left + 5
+
+
+def test_duplicate_offset_warns_about_data_it_cannot_move() -> None:
+    psd = PSDImage.open(full_name("vector-mask.psd"))
+    source = next(layer for layer in psd.descendants() if layer.has_vector_mask())
+    setting = source.tagged_blocks.get_data(Tag.VECTOR_MASK_SETTING1)
+    setting.path.append(ClipboardRecord())
+    source.tagged_blocks[Tag.TYPE_TOOL_INFO] = TaggedBlock(
+        key=Tag.TYPE_TOOL_INFO, data=b"opaque"
+    )
+    with pytest.warns(UserWarning, match="clipboard path record") as record:
+        source.duplicate(offset=(3, 4))
+    assert "legacy type data" in str(record[0].message)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        source.duplicate()

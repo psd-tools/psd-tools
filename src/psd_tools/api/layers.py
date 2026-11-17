@@ -151,7 +151,7 @@ from psd_tools.psd.tagged_blocks import (
     TaggedBlocks,
     TypeToolObjectSetting,
 )
-from psd_tools.psd.vector import Subpath
+from psd_tools.psd.vector import ClipboardRecord, Subpath
 from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
@@ -1342,7 +1342,8 @@ class Layer(LayerProtocol):
             descendants, masks, vector paths and smart-object transforms moving
             along. Defaults to a gap of 100 pixels to the right of the source for
             an artboard, and no movement for any other layer; pass ``(0, 0)`` to
-            keep an artboard on the source's rectangle.
+            keep an artboard on the source's rectangle. A clipboard path record
+            and legacy type data cannot be moved; they stay put with a warning.
         :raises TypeError: If the destination, index, name or offset has an
             invalid type.
         :raises ValueError: If no destination is available, the destination is
@@ -1516,6 +1517,7 @@ class Layer(LayerProtocol):
                             shift = dx if side in ("left", "right") else dy
                             setattr(mask, prefix + side, value + shift)
         blocks = self.tagged_blocks
+        unmoved = {"legacy type data"} if Tag.TYPE_TOOL_INFO in blocks else set()
         reference = blocks.get_data(Tag.REFERENCE_POINT)
         if reference is not None:
             reference[0] += dx
@@ -1524,6 +1526,8 @@ class Layer(LayerProtocol):
             setting = blocks.get_data(key)
             if setting is not None and setting.path is not None:
                 for subpath in setting.path:
+                    if isinstance(subpath, ClipboardRecord):
+                        unmoved.add("a clipboard path record")
                     if not isinstance(subpath, Subpath):
                         continue
                     for knot in subpath:
@@ -1561,6 +1565,12 @@ class Layer(LayerProtocol):
             transform[4] += dx
             transform[5] += dy
             text.transform = tuple(transform)
+        if unmoved:
+            warnings.warn(
+                f"Layer {self.name!r} holds {' and '.join(sorted(unmoved))}, "
+                "which duplicate() cannot move; it stays at the source position",
+                stacklevel=2,
+            )
         if isinstance(self, Group):
             for child in self:
                 child._translate(dx, dy)
