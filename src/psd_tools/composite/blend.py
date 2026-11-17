@@ -281,14 +281,10 @@ def hard_mix(Cb: np.ndarray, Cs: np.ndarray) -> np.ndarray:
     either 0 or 255. This changes all pixels to primary additive colors (red,
     green, or blue), white, or black.
     """
-    # Where Cb + Cs == 1 exactly, Photoshop answers 1 only where Cb > 0.5. On
-    # that line Cb > 0.5, Cb > Cs and Cs < 0.5 are one and the same predicate,
-    # so which of the three Photoshop actually tests is not observable. The tie
-    # is a real case and not float noise -- complementary values sum to exactly
-    # 1.0 in float32 at 8- and 16-bit alike -- though only a backdrop that
-    # reaches here unrounded can land on it. An epsilon in place of the exact
-    # test does worse than lose the tie: ``total >= 1 + 1e-6 * Cs`` mis-answers
-    # a whole band above the threshold (#189).
+    # Where Cb + Cs == 1 exactly, Photoshop answers 1 only where Cb > 0.5. The
+    # tie is real, not float noise: complementary values sum to exactly 1.0 in
+    # float32. An epsilon in place of the exact test mis-answers a whole band
+    # above the threshold (#189).
     total = Cb + Cs
     B = np.zeros_like(Cb, dtype=np.float32)
     B[(total > 1) | ((total == 1) & (Cb > 0.5))] = 1

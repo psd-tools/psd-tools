@@ -259,13 +259,10 @@ def _srgb_ungamma(c: float) -> float:
 
 
 def _clamp(value: float, low: float, high: float) -> float:
-    """Clamp, mapping NaN to *low*.
+    """Clamp, mapping NaN to *low* so a malformed descriptor cannot poison the canvas.
 
-    ``max(low, nan)`` returns ``low`` because ``nan > low`` is false, and
-    ``min`` then leaves it alone. That is the behaviour wanted here -- a NaN
-    from a malformed descriptor degrades to the end of the axis rather than
-    poisoning the canvas -- but it is a property of the argument order, so do
-    not reverse it.
+    NaN survives ``max`` only in the second position, so do not reverse the
+    arguments.
     """
     return min(high, max(low, value))
 
