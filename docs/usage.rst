@@ -155,6 +155,17 @@ paint the entire region if there is no associated mask. Sub-classes of
 :py:class:`~psd_tools.api.layers.AdjustmentLayer` represents layer
 adjustment applied to the composed image. See :ref:`adjustment-layers`.
 
+:py:attr:`~psd_tools.api.psd_image.PSDImage.artboards` lists the top-level
+:py:class:`~psd_tools.api.layers.Artboard` layers. The document composite and
+preview span the whole canvas; composite one artboard on its own with
+:py:meth:`Artboard.composite() <psd_tools.api.layers.Artboard.composite>`, and
+read its stored background with
+:py:attr:`~psd_tools.api.layers.Artboard.background`::
+
+    for artboard in psdimage.artboards:
+        image = artboard.composite()
+        print(artboard.name, artboard.bbox, artboard.background.kind)
+
 
 Modifying the layer structure
 -----------------------------

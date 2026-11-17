@@ -394,6 +394,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         Composite the PSD image.
 
+        The result spans the whole canvas. For a document with artboards that
+        is not any single design; use
+        :py:meth:`~psd_tools.api.layers.Artboard.composite` for one artboard.
+
         :param viewport: Viewport bounding box specified by (x1, y1, x2, y2)
             tuple. Default is the viewbox of the PSD.
         :param ignore_preview: Boolean flag to whether skip compositing when a
@@ -432,6 +436,16 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         if result is None:
             raise ValueError("Failed to composite PSD image")
         return result
+
+    @property
+    def artboards(self) -> list[layers.Artboard]:
+        """
+        Top-level artboards in z-order, bottom first.
+
+        Artboards nested in other groups are not included; use
+        :py:meth:`~psd_tools.api.layers.GroupMixin.descendants` for those.
+        """
+        return [layer for layer in self if isinstance(layer, layers.Artboard)]
 
     def mark_updated(self) -> None:
         """
