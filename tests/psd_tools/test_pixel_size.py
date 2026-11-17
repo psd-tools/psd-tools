@@ -30,11 +30,13 @@ from psd_tools.api.numpy_io import _image_data_planes
 from psd_tools.api.pil_io import _WHITE_BACKGROUND_TRANSIENT
 from psd_tools.api.pil_io import _image_data_peak_bytes as _pil_peak_bytes
 from psd_tools.api.utils import (
+    MAX_DIMENSION_PSB,
     MAX_DIMENSION_PSD,
     MAX_PIXELS_PSB,
     MAX_PIXELS_PSD,
     WARN_PIXELS,
     check_pixel_size,
+    dimension_limit,
     has_transparency,
 )
 from psd_tools.compression import compress
@@ -45,7 +47,9 @@ from .utils import full_name
 _Channel = Literal["color", "shape", "alpha", "mask"]
 
 
-def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
+def _build_psd(
+    width: int, height: int, channels: int = 3, version: int = 1
+) -> io.BytesIO:
     """Return a BytesIO containing a minimal structurally valid PSD.
 
     The image data section is empty; the pixel budget check must fire before
@@ -54,10 +58,13 @@ def _build_psd(width: int, height: int, channels: int = 3) -> io.BytesIO:
     buf = io.BytesIO()
     # File header: signature, version, 6-byte reserved, channels, height,
     # width, depth, color_mode (RGB = 3)
-    buf.write(struct.pack(">4sH6xHIIHH", b"8BPS", 1, channels, height, width, 8, 3))
+    buf.write(
+        struct.pack(">4sH6xHIIHH", b"8BPS", version, channels, height, width, 8, 3)
+    )
     buf.write(struct.pack(">I", 0))  # color mode data length
     buf.write(struct.pack(">I", 0))  # image resources length
-    buf.write(struct.pack(">I", 0))  # layer and mask info length
+    # layer and mask info length: 4 bytes in PSD, 8 in PSB
+    buf.write(struct.pack(">Q" if version == 2 else ">I", 0))
     buf.write(struct.pack(">H", 0))  # image data: compression = raw, no data
     buf.seek(0)
     return buf
@@ -68,8 +75,10 @@ def test_constants() -> None:
     # PSD v1 spec max: 30,000 px per axis
     assert MAX_DIMENSION_PSD == 30_000
     assert MAX_PIXELS_PSD == MAX_DIMENSION_PSD * MAX_DIMENSION_PSD
-    # PSB v2 spec reference — not enforced; check_pixel_size uses MAX_DIMENSION_PSD.
-    assert MAX_PIXELS_PSB == 300_000 * 300_000
+    assert MAX_DIMENSION_PSB == 300_000
+    assert MAX_PIXELS_PSB == MAX_DIMENSION_PSB * MAX_DIMENSION_PSB
+    assert dimension_limit(1) == MAX_DIMENSION_PSD
+    assert dimension_limit(2) == MAX_DIMENSION_PSB
     # Soft warning threshold must not block legitimate 16 k × 16 k canvases.
     assert WARN_PIXELS >= 16_000 * 16_000
 
@@ -111,6 +120,21 @@ def test_per_axis_limit_catches_non_square_oversized() -> None:
     psd = PSDImage.open(_build_psd(40_000, 1))
     with pytest.raises(ValueError, match="exceeds"):
         psd.numpy()
+
+
+def test_psb_axis_over_psd_limit_is_accepted() -> None:
+    raw = _build_psd(40_000, 1, version=2).getvalue() + bytes(3 * 40_000)
+    psd = PSDImage.open(io.BytesIO(raw))
+    assert psd.numpy().shape[:2] == (1, 40_000)
+    image = psd.topil()
+    assert image is not None
+    assert image.size == (40_000, 1)
+
+
+def test_psb_axis_over_psb_limit_is_rejected() -> None:
+    with pytest.raises(ValueError, match="per axis"):
+        check_pixel_size(MAX_DIMENSION_PSB + 1, 1, max_dimension=dimension_limit(2))
+    check_pixel_size(MAX_DIMENSION_PSB, 1, max_dimension=dimension_limit(2))
 
 
 def test_open_does_not_raise_for_out_of_spec_dimensions() -> None:

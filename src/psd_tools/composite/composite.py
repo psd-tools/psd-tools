@@ -21,7 +21,12 @@ from psd_tools.api.layers import (
 )
 from psd_tools.api.protocols import LayerProtocol, PSDProtocol
 from psd_tools.api.psd_image import PSDImage
-from psd_tools.api.utils import check_growth, check_pixel_size, get_color_channels
+from psd_tools.api.utils import (
+    check_growth,
+    check_pixel_size,
+    dimension_limit,
+    get_color_channels,
+)
 from psd_tools.composite import paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import get_blend_func, normal
@@ -318,7 +323,12 @@ def _stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
         try:
             bbox = utils.union_bbox(
                 bbox,
-                stroke_bbox(layer.bbox, effect.descriptor, layer._psd._max_alloc_bytes),
+                stroke_bbox(
+                    layer.bbox,
+                    effect.descriptor,
+                    layer._psd._max_alloc_bytes,
+                    max_dimension=dimension_limit(layer._psd.version),
+                ),
             )
         except _UNREADABLE as error:
             logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)
@@ -369,7 +379,13 @@ def _shadow_reach(
         try:
             bbox = utils.union_bbox(
                 bbox,
-                drop_shadow_bbox(cast_from, shadow.distance, shadow.angle, shadow.size),
+                drop_shadow_bbox(
+                    cast_from,
+                    shadow.distance,
+                    shadow.angle,
+                    shadow.size,
+                    max_dimension=dimension_limit(layer._psd.version),
+                ),
             )
         except _UNREADABLE as error:
             logger.debug("Cannot measure a drop shadow of %s: %s", layer, error)
@@ -801,6 +817,7 @@ def composite(
         _h,
         _estimate,
         max_alloc_bytes=_psd._max_alloc_bytes,
+        max_dimension=dimension_limit(_psd.version),
     )
 
     isolated = False
@@ -2475,6 +2492,7 @@ class Compositor:
                     else self.channels * 4
                 ),
                 warn=False,
+                max_dimension=dimension_limit(layer._psd.version),
             )
         try:
             color, _ = paint.create_fill_desc(
@@ -2761,6 +2779,7 @@ class Compositor:
                     self._viewport,
                     spread,
                     layer._psd._max_alloc_bytes,
+                    max_dimension=dimension_limit(layer._psd.version),
                 )
             except _UNREADABLE as error:
                 logger.debug("Cannot measure a drop shadow of %s: %s", layer, error)
@@ -2826,7 +2845,10 @@ class Compositor:
                 # or centered stroke has room for the part of itself that
                 # falls outside the layer (#792).
                 bbox = stroke_bbox(
-                    layer.bbox, effect.descriptor, layer._psd._max_alloc_bytes
+                    layer.bbox,
+                    effect.descriptor,
+                    layer._psd._max_alloc_bytes,
+                    max_dimension=dimension_limit(layer._psd.version),
                 )
             except _UNREADABLE as error:
                 logger.debug("Cannot measure a stroke effect of %s: %s", layer, error)

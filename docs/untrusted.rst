@@ -117,8 +117,9 @@ Other limits
 
 These apply whatever the budget:
 
-- Each image axis is limited to 30,000 px
-  (``psd_tools.api.utils.MAX_DIMENSION_PSD``), for PSB files too.
+- Each image axis is limited to 30,000 px for a PSD file and 300,000 px for a
+  PSB file (``psd_tools.api.utils.MAX_DIMENSION_PSD`` and ``MAX_DIMENSION_PSB``).
+  Patterns and thumbnails use the PSD limit.
 - A canvas grown from a descriptor value, such as a stroke width or a pattern
   scale, may not grow far out of proportion to what it grows from.
 

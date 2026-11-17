@@ -11,6 +11,7 @@ from psd_tools.api.numpy_io import _BACKGROUND_MODES, _encode_array
 from psd_tools.api.utils import (
     AllocBudget,
     check_pixel_size,
+    dimension_limit,
     get_transparency_index,
     has_transparency,
 )
@@ -293,6 +294,7 @@ def convert_image_data_to_pil(
         psd.channels,
         max_alloc_bytes=psd._max_alloc_bytes,
         estimated_bytes=_image_data_peak_bytes(psd, channel, apply_icc),
+        max_dimension=dimension_limit(psd.version),
     )
 
     if channel is not None and channel >= psd.channels:
@@ -432,6 +434,7 @@ def convert_layer_to_pil(
             max_alloc_bytes=layer._psd._max_alloc_bytes,
             estimated_bytes=peak,
             warn=False,
+            max_dimension=dimension_limit(layer._psd.version),
         )
     alpha = None
     icc = None

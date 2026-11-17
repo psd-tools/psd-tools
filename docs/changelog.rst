@@ -4,6 +4,11 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [fix] A PSB file wider or taller than 30,000 px is no longer rejected by
+  ``numpy()``, ``topil()`` or ``composite()``; the per-axis limit is now
+  300,000 px for PSB and stays 30,000 px for PSD. ``max_alloc_bytes`` still
+  bounds memory (#930)
+
 - [fix] Writing a version 2 legacy bevel effect (``BevelInfo``) emits its real
   highlight and shadow colours instead of repeating the plain ones, and no
   longer writes them for versions above 2, which ``read()`` never consumed.

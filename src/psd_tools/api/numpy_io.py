@@ -14,6 +14,7 @@ from psd_tools.api.utils import (
     EXPECTED_CHANNELS,
     AllocBudget,
     check_pixel_size,
+    dimension_limit,
     get_color_channels,
     get_transparency_index,
     has_transparency,
@@ -222,6 +223,7 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
         _image_data_planes(psdimage, flat),
         max_alloc_bytes=psdimage._max_alloc_bytes,
         estimated_bytes=_image_data_peak_bytes(psdimage, flat),
+        max_dimension=dimension_limit(psdimage.version),
     )
 
     if flat:
@@ -334,6 +336,7 @@ def _guard_channel_read(
                 ),
             ),
             warn=False,
+            max_dimension=dimension_limit(layer._psd.version),
         )
 
 
@@ -429,6 +432,7 @@ def get_layer_data(
             + _backing_bytes(shape)
             + layer.width * layer.height * planes * 4,
             warn=False,
+            max_dimension=dimension_limit(layer._psd.version),
         )
     return np.concatenate([color, shape], axis=2)
 
