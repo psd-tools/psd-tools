@@ -74,7 +74,10 @@ def test_background_custom_color_survives_a_cmyk_document() -> None:
     assert psd.artboards[0].background == expected
 
 
-@pytest.mark.parametrize("value", [Integer(9), Integer(0), None])
+@pytest.mark.parametrize(
+    "value",
+    [Integer(9), Integer(0), None, Double(2.5), Double(3.9), Double(float("nan"))],
+)
 def test_background_unknown_type_is_transparent(value: object) -> None:
     artboard = PSDImage.open(full_name("artboard-bgcolor.psd")).artboards[0]
     _set_background_type(artboard, value)

@@ -2583,10 +2583,11 @@ class Artboard(Group):
         data = self._artboard_data()
         if data is None:
             return transparent
+        raw = data.get(b"artboardBackgroundType")
         try:
-            kind = _ARTBOARD_BACKGROUND_KINDS.get(
-                int(data.get(b"artboardBackgroundType"))  # type: ignore[arg-type]
-            )
+            if int(raw) != float(raw):  # type: ignore[arg-type]
+                return transparent
+            kind = _ARTBOARD_BACKGROUND_KINDS.get(int(raw))  # type: ignore[arg-type]
         except (TypeError, ValueError, OverflowError):
             return transparent
         if kind == "white":
