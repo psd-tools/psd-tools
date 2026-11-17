@@ -4,6 +4,9 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [fix] ``get_pattern()`` no longer over-rejects, under ``max_alloc_bytes``, a pattern
+  whose channels declare different rectangles; each channel is sized by its own (#927)
+
 - [fix] Writing a version 2 legacy bevel effect (``BevelInfo``) emits its real
   highlight and shadow colours instead of repeating the plain ones, and no
   longer writes them for versions above 2, which ``read()`` never consumed.
