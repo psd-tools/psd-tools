@@ -49,7 +49,6 @@ test = [
 ]
 dev = [
     {include-group = "test"},
-    "ipykernel",
     "ruff",
     "mypy",
     "pre-commit",
@@ -126,6 +125,10 @@ convention = "pep257"
 
 [tool.mypy]
 files = ["src/psd_tools", "tests", "tools", "docs/conf.py"]
+
+[[tool.mypy.overrides]]
+module = ["IPython.*"]
+ignore_missing_imports = true
 
 [tool.cibuildwheel]
 archs = "auto64"
