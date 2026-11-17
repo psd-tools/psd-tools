@@ -458,16 +458,14 @@ def _colormode(filename: str, max_alloc_bytes: int | None = None) -> PSDImage:
 def _payload(size: int, depth: int) -> bytes:
     """``size`` bytes of body that every branch of the model can be measured on.
 
-    The content is load-bearing rather than filler. At depth 32 the buffer is
-    reinterpreted as float32, and a body of arbitrary bytes reads as mostly
-    *negative* floats; `_remove_background()` then finds every alpha at or below
-    zero, its `color[a > 0]` selects almost nothing, and the largest transient
-    in the whole model goes unallocated and unmeasured. ``0x3f000000`` is 0.5f,
-    so every plane -- alpha included -- comes out positive and in range.
+    The content is load-bearing. At depth 32 the buffer is read as float32, and
+    arbitrary bytes read as mostly negative floats, so `_remove_background()`
+    finds no alpha above zero and the model's largest transient goes
+    unallocated and unmeasured. ``0x3f000000`` is 0.5f, positive and in range
+    for every plane.
 
-    The other depths rescale into ``[0, 1]`` from unsigned integers, where any
-    non-zero byte will do; ``range(1, 256)`` simply skips zero, so that an
-    all-zero alpha plane cannot hide the same transient by the same route.
+    The other depths rescale unsigned integers into ``[0, 1]``; ``range(1, 256)``
+    skips zero so an all-zero alpha plane cannot hide the same transient.
     """
     unit = b"\x3f\x00\x00\x00" if depth == 32 else bytes(range(1, 256))
     return (unit * (size // len(unit) + 1))[:size]

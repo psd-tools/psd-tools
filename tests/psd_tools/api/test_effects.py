@@ -236,15 +236,12 @@ def test_satin(fixture: PSDImage) -> None:
 def _forge_unknown_class(layer: Layer, key: bytes, index: int = 0) -> None:
     """Give one of ``layer``'s effects a class psd-tools has no handler for.
 
-    Nothing ships like this: every effect class in ``tests/psd_files`` is one
-    ``_TYPES`` holds, and Photoshop writes no others, so reaching the branch
-    at all means forging it.
+    Nothing ships like this: Photoshop writes only classes ``_TYPES`` holds,
+    so reaching the branch means forging it.
 
     No ``del layer._effects`` afterwards: :py:attr:`Layer.effects` is a live
-    view, so the callers below see the forged class on their next access.
-    That this helper reads ``layer.effects._data`` first is what makes them
-    evidence for it -- under the snapshot they would be reading a list built
-    before the forgery.
+    view, so callers see the forged class on their next access. A snapshot
+    would be a list built before the forgery.
     """
     item = layer.effects._data[key]  # type: ignore[index]
     item = item[index] if isinstance(item, List) else item

@@ -503,30 +503,19 @@ def _layered_multichannel(
     """A multichannel document *with* layers, which no fixture provides.
 
     Photoshop neither produces nor preserves this shape: converting to
-    Multichannel flattens, and *opening* a hand-built layered multichannel file
-    discards the layer records outright. Verified against Photoshop 2026, which
-    reduced a 13-layer retagged document to a single Background layer whose
-    three channels it presents as spot channels ("Alpha 1".."Alpha 3") holding
-    the file's merged image data bit-for-bit. So a document of this shape is
-    only ever hand-built -- which is exactly the input the allocation guard
-    exists for -- and there is no Photoshop render to check a layered
-    multichannel composite against, because Photoshop declines to composite
-    one.
+    Multichannel flattens, and opening a hand-built one discards the layer
+    records. So it is only ever hand-built -- the input the allocation guard
+    exists for -- and there is no Photoshop render to check it against.
 
-    Retagging the RGB fixture's color mode in place is the whole of
-    it: that fixture's three document channels and its layers' three color
-    channels already agree, as they would in a multichannel file with three
-    spot channels, so nothing else about the document has to change. The CMYK
-    fixture retags on the same terms and gives four plates instead of three --
-    the count a CMYK header states (#746) -- since its header and its layers
-    agree at four the same way.
+    Retagging the RGB fixture's color mode in place is enough: its three
+    document channels and its layers' three color channels already agree, as
+    in a multichannel file with three spot channels. The CMYK fixture retags
+    the same way to give four plates (#746).
 
-    Built this way rather than with ``PSDImage.new`` + ``PixelLayer.frompil``
-    on purpose. ``frompil`` converts to the document's ``pil_mode``, which is
-    ``"LA"`` for a three-channel multichannel document, so the layer would
-    carry a single color channel against a header declaring three -- and a
-    one-channel source is widened to whatever the canvas is, so the test would
-    pass without ever exercising the canvas width it is about.
+    Not built with ``PSDImage.new`` + ``PixelLayer.frompil``: that converts to
+    the document's ``pil_mode`` (``"LA"``), so the layer would carry one color
+    channel against a header declaring three, and a one-channel source is
+    widened to any canvas, so the test would never exercise the canvas width.
     """
     psd = PSDImage.open(full_name(filename), **kwargs)
     psd._record.header.color_mode = ColorMode.MULTICHANNEL

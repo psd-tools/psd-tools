@@ -752,18 +752,15 @@ PHOTOSHOP_CMYK_SEPARABLE: list[
 def _cmyk_canvas_8bit(ink: list[float]) -> np.ndarray:
     """Ink percent snapped to the 8-bit value Photoshop actually stored.
 
-    ``_cmyk_canvas`` above converts the percentage directly, which is fine when
-    a blend is continuous in its operands. ``hard_mix`` is not: it turns on a
-    tie at ``Cb + Cs == 1``, and a nominal 50% ink is stored as 128/255 rather
-    than the 0.5 that a direct conversion yields -- close enough to read as a
-    tie that is not one, and to assert the wrong branch. Snapping first makes
-    the readable round numbers in the table above mean exactly what Photoshop
-    held: every operand in the table round-trips to the byte Photoshop reported.
-    That is checked rather than guaranteed -- inks such as 10, 50 and 70 land on
-    a .5 boundary in exact arithmetic, and it is float64 representation error
-    and ``np.round``'s half-to-even rule that put them on Photoshop's side. A
-    new pair that lands on such a boundary needs the same check, which
-    ``test_the_table_operands_round_trip_to_photoshops_bytes`` below applies.
+    ``_cmyk_canvas`` above converts the percentage directly, which is fine for
+    a blend continuous in its operands. ``hard_mix`` turns on a tie at
+    ``Cb + Cs == 1``, and a nominal 50% ink is stored as 128/255, not the 0.5 a
+    direct conversion yields, which reads as a tie that is not one.
+
+    Some inks land on a .5 boundary in exact arithmetic and round to
+    Photoshop's byte only through float64 error and half-to-even rounding, so a
+    new pair needs the check in
+    ``test_the_table_operands_round_trip_to_photoshops_bytes`` below.
     """
     value = np.round((1.0 - np.array(ink, dtype=np.float64) / 100.0) * 255.0)
     return (value / 255.0).astype(np.float32).reshape(1, 1, 4)
