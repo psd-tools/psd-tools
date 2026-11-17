@@ -7,6 +7,8 @@ Changelog
 - [api] Add ``Layer.effects_bbox``, the layer box grown to hold its rendered
   strokes and drop shadows, and ``composite(include_effects=True)`` to
   composite on it. The default viewport is unchanged (#797)
+- [docs] Link Python, NumPy and Pillow types in the API reference through
+  intersphinx (#847)
 - [fix] Clipped layers no longer over-attenuate the color of partially
   transparent pixel and group bases (#1057)
 - [fix] Layers clipped to an adjustment layer over a partially transparent
