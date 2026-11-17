@@ -185,7 +185,7 @@ class Curves(BaseElement):
     version: int = 0
     count_map: int = 0
     data: list = field(factory=list, converter=list)
-    extra: object = None
+    extra: "CurvesExtraMarker | None" = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
@@ -232,7 +232,7 @@ class Curves(BaseElement):
                 written += sum(write_fmt(fp, "2H", *item) for item in points)
 
         if self.extra is not None:
-            written += self.extra.write(fp)  # type: ignore[attr-defined]
+            written += self.extra.write(fp)
 
         written += write_padding(fp, written, 4)
         return written

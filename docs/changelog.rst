@@ -4,6 +4,11 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [api] Annotate the ``object``-typed fields of ``psd_tools.psd`` structures
+  (``Curves.extra``, ``PlacedLayerData.warp``, ``Slices.data``, effect colours
+  and others) with their real types. ``PlacedLayerData.warp`` now defaults to
+  an empty ``DescriptorBlock2`` instead of ``None`` (#917)
+
 - [fix] A vector stroke whose width is stored in points is rendered at
   points x resolution / 72 pixels instead of the bare number, so strokes on
   non-72 dpi documents are no longer drawn too thin. ``Stroke.line_width``

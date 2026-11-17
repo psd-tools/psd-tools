@@ -705,7 +705,7 @@ class PlacedLayerData(BaseElement):
         validator=in_(tuple(PlacedLayerType)),
     )
     transform: tuple = (0.0,) * 8
-    warp: object = None
+    warp: DescriptorBlock2 = field(factory=DescriptorBlock2)
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "PlacedLayerData":
@@ -743,7 +743,7 @@ class PlacedLayerData(BaseElement):
             self.layer_type.value,
         )
         written += write_fmt(fp, "8d", *self.transform)
-        written += self.warp.write(fp, padding=1)  # type: ignore[attr-defined]
+        written += self.warp.write(fp, padding=1)
         written += write_padding(fp, written, padding)
         return written
 

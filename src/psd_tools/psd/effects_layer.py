@@ -187,7 +187,7 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     )
     enabled: int = 0
     opacity: int = 0
-    native_color: object = None
+    native_color: Color | None = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
@@ -212,8 +212,8 @@ class OuterGlowInfo(BaseElement, _GlowInfo):
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
         written = self._write_body(fp)
-        if self.native_color and hasattr(self.native_color, "write"):
-            written += self.native_color.write(fp)  # type: ignore[attr-defined]
+        if self.native_color is not None:
+            written += self.native_color.write(fp)
         return written
 
 
@@ -243,7 +243,7 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
     enabled: int = 0
     opacity: int = 0
     invert: int | None = None
-    native_color: object | None = None
+    native_color: Color | None = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
@@ -272,8 +272,8 @@ class InnerGlowInfo(BaseElement, _GlowInfo):
         written = self._write_body(fp)
         if self.version >= 2:
             written += write_fmt(fp, "B", self.invert)
-            if hasattr(self.native_color, "write"):
-                written += self.native_color.write(fp)  # type: ignore[attr-defined]
+            if self.native_color is not None:
+                written += self.native_color.write(fp)
         return written
 
 
@@ -317,8 +317,8 @@ class BevelInfo(BaseElement):
     enabled: int = 0
     use_global_angle: int = 0
     direction: int = 0
-    real_highlight_color: object = None
-    real_shadow_color: object = None
+    real_highlight_color: Color | None = None
+    real_shadow_color: Color | None = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
