@@ -131,6 +131,21 @@ def test_psb_axis_over_psd_limit_is_accepted() -> None:
     assert image.size == (40_000, 1)
 
 
+@pytest.mark.parametrize("compression", [Compression.RAW, Compression.RLE])
+def test_tall_psb_with_stacked_channel_rows_is_accepted(compression) -> None:
+    """The decoder sees height * channels rows, which may pass the axis limit."""
+    height = MAX_DIMENSION_PSB // 3 + 1
+    header = _build_psd(1, height, version=2).getvalue()[: -len(b"\x00\x00")]
+    planes = bytes(3 * height)
+    body = compress(planes, compression, 1, 3 * height, 8, 2)
+    raw = header + struct.pack(">H", compression.value) + body
+    psd = PSDImage.open(io.BytesIO(raw))
+    assert psd.numpy().shape[:2] == (height, 1)
+    image = psd.topil()
+    assert image is not None
+    assert image.size == (1, height)
+
+
 def test_psb_axis_over_psb_limit_is_rejected() -> None:
     with pytest.raises(ValueError, match="per axis"):
         check_pixel_size(MAX_DIMENSION_PSB + 1, 1, max_dimension=dimension_limit(2))

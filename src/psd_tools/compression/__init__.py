@@ -117,11 +117,13 @@ MAX_DEGRADED_BYTES: int | None = 16 * 1024 * 1024
 MAX_DEGRADED_RATIO: int = 1000
 
 
-def _validate_dimensions(width: int, height: int, depth: int) -> None:
+def _validate_dimensions(
+    width: int, height: int, depth: int, max_height: int = _MAX_DIMENSION
+) -> None:
     if width < 1 or width > _MAX_DIMENSION:
         raise ValueError("width %d out of range [1, %d]" % (width, _MAX_DIMENSION))
-    if height < 1 or height > _MAX_DIMENSION:
-        raise ValueError("height %d out of range [1, %d]" % (height, _MAX_DIMENSION))
+    if height < 1 or height > max_height:
+        raise ValueError("height %d out of range [1, %d]" % (height, max_height))
     if depth not in _VALID_DEPTHS:
         raise ValueError("depth %d not in %s" % (depth, sorted(_VALID_DEPTHS)))
 
@@ -296,6 +298,7 @@ def decompress(
     version: int = 1,
     *,
     max_output_bytes: int | None = None,
+    max_height: int = _MAX_DIMENSION,
 ) -> bytes:
     """Decompress raw data.
 
@@ -303,15 +306,17 @@ def decompress(
     :param compression: compression type,
             see :py:class:`~psd_tools.constants.Compression`.
     :param width: width in pixels; must be in [1, 300000].
-    :param height: height in pixels; must be in [1, 300000].
+    :param height: height in pixels; must be in [1, ``max_height``].
     :param depth: bit depth of the pixel; must be one of 1, 8, 16, 32.
     :param version: psd file version.
     :param max_output_bytes: positive output-byte ceiling; None disables it.
+    :param max_height: row limit, for data that stacks the rows of several
+        channels; defaults to the per-axis limit.
     :return: decompressed data bytes.
     :raises ValueError: if *width*, *height*, or *depth* are out of range.
     :raises DecompressionLimitError: if an output or expansion limit is exceeded.
     """
-    _validate_dimensions(width, height, depth)
+    _validate_dimensions(width, height, depth, max_height)
 
     length = _channel_length(width, height, depth)
     _check_output_limit(
@@ -324,7 +329,9 @@ def decompress(
         result = data[:length]
     elif compression == Compression.RLE:
         try:
-            result = decode_rle(data, width, height, depth, version)
+            result = decode_rle(
+                data, width, height, depth, version, max_height=max_height
+            )
         except (ParseLimitError, DecompressionLimitError):
             raise
         except (ValueError, IndexError, OSError) as e:
@@ -448,6 +455,7 @@ def decode_rle(
     version: int,
     *,
     max_output_bytes: int | None = None,
+    max_height: int = _MAX_DIMENSION,
 ) -> bytes:
     """Decode RLE rows, checking output limits before reading or allocating.
 
@@ -455,7 +463,7 @@ def decode_rle(
     Excessive expansion is also rejected by ``MAX_DEGRADED_BYTES`` and
     ``MAX_DEGRADED_RATIO``, including zero-padding of incomplete rows.
     """
-    _validate_dimensions(width, height, depth)
+    _validate_dimensions(width, height, depth, max_height)
     if version not in (1, 2):
         raise ValueError("version must be 1 or 2")
     length = _channel_length(width, height, depth)
