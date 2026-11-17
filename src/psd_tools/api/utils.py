@@ -280,10 +280,8 @@ EXPECTED_CHANNELS = {
 def get_color_channels(psdimage: PSDProtocol) -> int:
     """Return the number of color channels a document's pixel arrays carry.
 
-    Use this, not :data:`EXPECTED_CHANNELS`, to allocate a canvas as wide as the
-    document's arrays or to validate a color against one. The constant's
-    multichannel entry is the format's maximum, kept as a defensive cap in
-    ``numpy_io._find_channel()``; only the document knows its own count.
+    Use this, not :data:`EXPECTED_CHANNELS`, to size a canvas or validate a
+    color: the constant's multichannel entry is the format's maximum.
 
     Args:
         psdimage: The PSD image protocol object

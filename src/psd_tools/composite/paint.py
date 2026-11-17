@@ -62,15 +62,11 @@ _SINGLE_CHANNEL_MODES = (
 
 
 def _clamp01(value: float) -> float:
-    """Hold *value* inside the range a color array may carry (#757).
+    """Clamp an unconstrained descriptor component to [0, 1], NaN to 0.0 (#757).
 
-    A descriptor component is unconstrained, and ``utils.clip()`` runs too late
-    once the color is blended. ``composite_pil()``'s uint8 clip is independent
-    on purpose; do not drop this one because of it. Applied where the untrusted
-    number enters, so ``color_convert`` keeps its ``[0, 1]`` input contracts.
-
-    NaN maps to 0.0 because ``max`` keeps its first argument when ``nan > 0.0``
-    is false; do not reverse the argument order.
+    Applied where the untrusted number enters, because ``utils.clip()`` runs
+    too late once the color is blended. ``max`` keeps its first argument when
+    a comparison with NaN is false, so the bound goes first; do not reverse it.
     """
     return min(1.0, max(0.0, value))
 
