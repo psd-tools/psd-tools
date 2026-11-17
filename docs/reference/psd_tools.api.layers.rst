@@ -23,6 +23,9 @@ Artboard
 .. autoclass:: psd_tools.api.layers.Artboard
     :members:
 
+.. autoclass:: psd_tools.api.layers.ArtboardBackground
+    :members:
+
 Group
 -----
 

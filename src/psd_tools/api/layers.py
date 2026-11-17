@@ -94,6 +94,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Literal,
+    NamedTuple,
     Protocol,
     Self,
     cast,
@@ -2543,8 +2544,76 @@ class Group(GroupMixin, Layer):
         return group
 
 
+_ArtboardKind = Literal["transparent", "white", "black", "custom"]
+
+
+class ArtboardBackground(NamedTuple):
+    """Background of an :py:class:`Artboard`, independent of the document color mode."""
+
+    kind: Literal["transparent", "white", "black", "custom"]
+    """Photoshop's background setting."""
+    color: tuple[float, float, float] | None
+    """RGB in [0.0, 1.0], or ``None`` for a transparent background."""
+    alpha: float
+    """``0.0`` for a transparent background, ``1.0`` otherwise."""
+
+
+_ARTBOARD_BACKGROUND_KINDS: dict[int, _ArtboardKind] = {
+    1: "transparent",
+    2: "white",
+    3: "black",
+    4: "custom",
+}
+
+
 class Artboard(Group):
     """Artboard is a special kind of group that has a pre-defined viewbox."""
+
+    @property
+    def background(self) -> ArtboardBackground:
+        """
+        The artboard's background setting, as stored in the file.
+
+        Unlike what :py:meth:`composite` applies, the result does not depend on
+        the document color mode: the color is always RGB, so a custom color on
+        a CMYK or Lab document is reported rather than dropped. A missing,
+        malformed or unknown setting reads as transparent.
+        """
+        transparent = ArtboardBackground("transparent", None, 0.0)
+        data = self._artboard_data()
+        if data is None:
+            return transparent
+        raw = data.get(b"artboardBackgroundType")
+        try:
+            if int(raw) != float(raw):  # type: ignore[arg-type]
+                return transparent
+            kind = _ARTBOARD_BACKGROUND_KINDS.get(int(raw))  # type: ignore[arg-type]
+        except (TypeError, ValueError, OverflowError):
+            return transparent
+        if kind == "white":
+            return ArtboardBackground(kind, (1.0, 1.0, 1.0), 1.0)
+        if kind == "black":
+            return ArtboardBackground(kind, (0.0, 0.0, 0.0), 1.0)
+        if kind == "custom":
+            clr = data.get(Key.Color)
+            if not isinstance(clr, Descriptor):
+                return transparent
+            try:
+                red, green, blue = (
+                    float(clr[key]) / 255.0 for key in (Key.Red, Key.Green, Key.Blue)
+                )
+            except (KeyError, TypeError, ValueError, OverflowError):
+                return transparent
+            if not all(0.0 <= v <= 1.0 for v in (red, green, blue)):
+                return transparent
+            return ArtboardBackground(kind, (red, green, blue), 1.0)
+        return transparent
+
+    def _artboard_data(self) -> Any:
+        data = None
+        for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+            data = self.tagged_blocks.get_data(key, data)
+        return data
 
     @classmethod
     def _move(kls, group: Group) -> "Artboard":
@@ -2622,9 +2691,7 @@ class Artboard(Group):
         Falls back to (1.0, 0.0) — the Group default — on any missing or
         unsupported data.
         """
-        data = None
-        for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
-            data = self.tagged_blocks.get_data(key, data)
+        data = self._artboard_data()
 
         if data is None:
             return 1.0, 0.0
@@ -2730,9 +2797,7 @@ class Artboard(Group):
     def bbox(self) -> tuple[int, int, int, int]:
         """(left, top, right, bottom) tuple."""
         if self._bbox is None:
-            data = None
-            for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
-                data = self.tagged_blocks.get_data(key, data)
+            data = self._artboard_data()
             if data is None:
                 raise ValueError("Artboard data not found in tagged blocks")
             rect = data.get(b"artboardRect")
