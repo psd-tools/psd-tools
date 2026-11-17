@@ -1347,7 +1347,8 @@ class Layer(LayerProtocol):
             invalid type.
         :raises ValueError: If no destination is available, the destination is
             in another document, an artboard is not going to the document root,
-            the name exceeds 255 characters, or the offset exceeds 2**30 pixels.
+            the name exceeds 255 characters, the offset exceeds 2**30 pixels, or it
+            moves a vector path beyond what the file format can store.
         :raises IndexError: If ``index`` is out of range.
         :return: The inserted copy; the source remains in place.
         """
@@ -1507,9 +1508,9 @@ class Layer(LayerProtocol):
             record.bottom += dy
         mask = record.mask_data
         if mask is not None:
-            for prefix in ("", "real_"):
+            for prefix, flags in (("", mask.flags), ("real_", mask.real_flags)):
                 sides = [getattr(mask, prefix + side) for side in _SIDES]
-                if any(sides):
+                if any(sides) and not (flags and flags.pos_relative_to_layer):
                     for side, value in zip(_SIDES, sides, strict=True):
                         if value is not None:
                             shift = dx if side in ("left", "right") else dy
@@ -1528,11 +1529,16 @@ class Layer(LayerProtocol):
                     for knot in subpath:
                         for point in ("preceding", "anchor", "leaving"):
                             y, x = getattr(knot, point)
-                            setattr(
-                                knot,
-                                point,
-                                (y + dy / self._psd.height, x + dx / self._psd.width),
-                            )
+                            y += dy / self._psd.height
+                            x += dx / self._psd.width
+                            if not (
+                                -_MAX_KNOT <= y < _MAX_KNOT
+                                and -_MAX_KNOT <= x < _MAX_KNOT
+                            ):
+                                raise ValueError(
+                                    "offset moves a vector path outside the range the file can store"
+                                )
+                            setattr(knot, point, (y, x))
         origination = blocks.get_data(Tag.VECTOR_ORIGINATION_DATA)
         if origination is not None:
             for shape in origination.get(b"keyDescriptorList") or ():
@@ -2640,6 +2646,7 @@ class Group(GroupMixin, Layer):
 
 ARTBOARD_COPY_GAP = 100
 _MAX_OFFSET = 2**30
+_MAX_KNOT = 128.0
 _SIDES = ("left", "top", "right", "bottom")
 
 

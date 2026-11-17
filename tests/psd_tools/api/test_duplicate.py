@@ -749,3 +749,30 @@ def test_duplicate_offset_accepts_numpy_integers_and_rejects_overflow() -> None:
     with pytest.raises(ValueError, match="offset"):
         layer.duplicate(offset=(2**31, 0))
     assert len(psd) == 2
+
+
+def test_duplicate_offset_rejects_a_vector_path_the_file_cannot_store(
+    tmp_path: Path,
+) -> None:
+    psd = PSDImage.open(full_name("vector-mask.psd"))
+    source = next(layer for layer in psd.descendants() if layer.has_vector_mask())
+    count = len(list(psd.descendants()))
+    with pytest.raises(ValueError, match="vector path"):
+        source.duplicate(offset=(psd.width * 129, 0))
+    assert len(list(psd.descendants())) == count
+    source.duplicate(offset=(psd.width * 100, 0))
+    psd.save(tmp_path / "far.psd")
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_duplicate_offset_leaves_layer_relative_masks_alone(relative: bool) -> None:
+    psd = PSDImage.new("RGB", (20, 20))
+    source = psd.create_pixel_layer(Image.new("RGB", (4, 4), "red"))
+    source.create_mask(Image.new("L", (4, 4), 128))
+    data = source._record.mask_data
+    assert data is not None
+    data.flags.pos_relative_to_layer = relative
+    copy = source.duplicate(offset=(5, 0))
+    assert copy._record.mask_data is not None
+    assert copy._record.mask_data.left == (data.left if relative else data.left + 5)
+    assert copy.left == source.left + 5
