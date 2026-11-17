@@ -90,6 +90,7 @@ import warnings
 from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 from copy import deepcopy
 from itertools import chain
+from numbers import Integral
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -150,6 +151,7 @@ from psd_tools.psd.tagged_blocks import (
     TaggedBlocks,
     TypeToolObjectSetting,
 )
+from psd_tools.psd.vector import ClipboardRecord, Subpath
 from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
@@ -1317,14 +1319,16 @@ class Layer(LayerProtocol):
         *,
         index: int | None = None,
         name: str | None = None,
+        offset: tuple[int, int] | None = None,
     ) -> Self:
         """
         Deep-copy this layer, including a group's descendants, in its document.
 
         The copy retains its layer type, channels, masks and layer metadata,
         with fresh layer IDs. Document resources such as smart-object contents
-        remain shared. No cached API wrappers are copied. An artboard's copy
-        keeps its rectangle and so overlaps the source.
+        remain shared. No cached API wrappers are copied. An artboard's copy is
+        placed to the right of the source, as Photoshop does, and the document
+        canvas is not resized to hold it.
 
         :param parent: Destination group or document. Defaults to this layer's
             parent. A detached layer requires an explicit destination.
@@ -1334,10 +1338,18 @@ class Layer(LayerProtocol):
             the top of another container. A copy placed directly above its
             source releases the clipped layers above the source.
         :param name: Optional name for the copy's root layer.
-        :raises TypeError: If the destination, index or name has an invalid type.
+        :param offset: ``(dx, dy)`` pixels to move the copy by, with a group's
+            descendants, masks, vector paths and smart-object transforms moving
+            along. Defaults to a gap of 100 pixels to the right of the source for
+            an artboard, and no movement for any other layer; pass ``(0, 0)`` to
+            keep an artboard on the source's rectangle. A clipboard path record
+            and legacy type data cannot be moved; they stay put with a warning.
+        :raises TypeError: If the destination, index, name or offset has an
+            invalid type.
         :raises ValueError: If no destination is available, the destination is
             in another document, an artboard is not going to the document root,
-            or the name exceeds 255 characters.
+            the name exceeds 255 characters, the offset exceeds 2**30 pixels, or it
+            moves a vector path beyond what the file format can store.
         :raises IndexError: If ``index`` is out of range.
         :return: The inserted copy; the source remains in place.
         """
@@ -1366,10 +1378,29 @@ class Layer(LayerProtocol):
                 raise TypeError("Layer name must be a string")
             if len(name) >= 256:
                 raise ValueError("Layer name too long (max 255 characters)")
+        if offset is None:
+            offset = (
+                (self.width + ARTBOARD_COPY_GAP, 0)
+                if isinstance(self, Artboard)
+                else (0, 0)
+            )
+        else:
+            if (
+                not isinstance(offset, (tuple, list))
+                or len(offset) != 2
+                or not all(
+                    isinstance(v, Integral) and not isinstance(v, bool) for v in offset
+                )
+            ):
+                raise TypeError("offset must be a (dx, dy) pair of integers")
+            offset = (int(offset[0]), int(offset[1]))
+            if any(abs(v) > _MAX_OFFSET for v in offset):
+                raise ValueError(f"offset must be within +-{_MAX_OFFSET} pixels")
 
         # Reconstruct from records so lazy wrappers bind to the copy, without
         # following parent or document references through deepcopy().
         duplicate = self._duplicate(parent)
+        duplicate._translate(offset[0], offset[1])
         sources: list[LayerProtocol] = [*self._psd.descendants(), self]
         if isinstance(self, Group):
             sources.extend(self.descendants())
@@ -1464,6 +1495,85 @@ class Layer(LayerProtocol):
             duplicate._bounding_channels = deepcopy(self._bounding_channels)
             duplicate._layers = [child._duplicate(duplicate) for child in self]
         return duplicate
+
+    def _translate(self, dx: int, dy: int) -> None:
+        """Move this layer's stored geometry by ``(dx, dy)`` pixels."""
+        if not (dx or dy):
+            return
+        self._invalidate_bbox()
+        record = self._record
+        if record.left or record.top or record.right or record.bottom:
+            record.left += dx
+            record.right += dx
+            record.top += dy
+            record.bottom += dy
+        mask = record.mask_data
+        if mask is not None:
+            for prefix, flags in (("", mask.flags), ("real_", mask.real_flags)):
+                sides = [getattr(mask, prefix + side) for side in _SIDES]
+                if any(sides) and not (flags and flags.pos_relative_to_layer):
+                    for side, value in zip(_SIDES, sides, strict=True):
+                        if value is not None:
+                            shift = dx if side in ("left", "right") else dy
+                            setattr(mask, prefix + side, value + shift)
+        blocks = self.tagged_blocks
+        unmoved = {"legacy type data"} if Tag.TYPE_TOOL_INFO in blocks else set()
+        reference = blocks.get_data(Tag.REFERENCE_POINT)
+        if reference is not None:
+            reference[0] += dx
+            reference[1] += dy
+        for key in (Tag.VECTOR_MASK_SETTING1, Tag.VECTOR_MASK_SETTING2):
+            setting = blocks.get_data(key)
+            if setting is not None and setting.path is not None:
+                for subpath in setting.path:
+                    if isinstance(subpath, ClipboardRecord):
+                        unmoved.add("a clipboard path record")
+                    if not isinstance(subpath, Subpath):
+                        continue
+                    for knot in subpath:
+                        for point in ("preceding", "anchor", "leaving"):
+                            y, x = getattr(knot, point)
+                            y += dy / self._psd.height
+                            x += dx / self._psd.width
+                            if not (
+                                -_MAX_KNOT <= y < _MAX_KNOT
+                                and -_MAX_KNOT <= x < _MAX_KNOT
+                            ):
+                                raise ValueError(
+                                    "offset moves a vector path outside the range the file can store"
+                                )
+                            setattr(knot, point, (y, x))
+        origination = blocks.get_data(Tag.VECTOR_ORIGINATION_DATA)
+        if origination is not None:
+            for shape in origination.get(b"keyDescriptorList") or ():
+                _translate_origination(shape, dx, dy)
+        for key in (Tag.PLACED_LAYER1, Tag.PLACED_LAYER2):
+            placed = blocks.get_data(key)
+            if placed is not None:
+                placed.transform = _shift_quad(placed.transform, dx, dy)
+        for key in (Tag.SMART_OBJECT_LAYER_DATA1, Tag.SMART_OBJECT_LAYER_DATA2):
+            config = blocks.get_data(key)
+            if isinstance(config, SmartObjectLayerData):
+                for field in (b"Trnf", b"nonAffineTransform"):
+                    quad = config.data.get(field)
+                    if quad is not None:
+                        for index, number in enumerate(quad):
+                            number.value += dy if index % 2 else dx
+        text = blocks.get_data(Tag.TYPE_TOOL_OBJECT_SETTING)
+        if isinstance(text, TypeToolObjectSetting):
+            transform = list(text.transform)
+            transform[4] += dx
+            transform[5] += dy
+            text.transform = tuple(transform)
+        if unmoved:
+            warnings.warn(
+                f"Layer {self.name!r} holds {' and '.join(sorted(unmoved))}, "
+                "which duplicate() cannot move; it stays at the source position",
+                stacklevel=2,
+            )
+        if isinstance(self, Group):
+            for child in self:
+                child._translate(dx, dy)
 
     def delete_layer(self) -> Self:
         """
@@ -2544,6 +2654,45 @@ class Group(GroupMixin, Layer):
         return group
 
 
+ARTBOARD_COPY_GAP = 100
+_MAX_OFFSET = 2**30
+_MAX_KNOT = 128.0
+_SIDES = ("left", "top", "right", "bottom")
+
+
+def _shift_quad(quad: tuple, dx: int, dy: int) -> tuple:
+    """Shift a flat (x0, y0, x1, y1, ...) corner tuple."""
+    return tuple(v + (dy if i % 2 else dx) for i, v in enumerate(quad))
+
+
+def _shift_numbers(descriptor: Any, keys: tuple[bytes, ...], shift: int) -> None:
+    for key in keys:
+        if key in descriptor:
+            descriptor[key].value += shift
+
+
+def _translate_origination(shape: Any, dx: int, dy: int) -> None:
+    """Shift the pixel coordinates a shape-tool origination descriptor stores."""
+    transform = shape.get(b"Trnf")
+    if transform is not None:
+        _shift_numbers(transform, (b"tx",), dx)
+        _shift_numbers(transform, (b"ty",), dy)
+    bbox = shape.get(b"keyOriginShapeBBox")
+    if bbox is not None:
+        _shift_numbers(bbox, (b"Left", b"Rght"), dx)
+        _shift_numbers(bbox, (b"Top ", b"Btom"), dy)
+    corners = shape.get(b"keyOriginBoxCorners")
+    points = list(corners.values()) if corners is not None else []
+    points += [
+        shape[key]
+        for key in (b"keyOriginLineStart", b"keyOriginLineEnd")
+        if key in shape
+    ]
+    for point in points:
+        _shift_numbers(point, (b"Hrzn",), dx)
+        _shift_numbers(point, (b"Vrtc",), dy)
+
+
 _ArtboardKind = Literal["transparent", "white", "black", "custom"]
 
 
@@ -2639,6 +2788,15 @@ class Artboard(Group):
                     )
                 self.parent._layers[index] = self
         return self
+
+    def _translate(self, dx: int, dy: int) -> None:
+        super()._translate(dx, dy)
+        for key in (Tag.ARTBOARD_DATA1, Tag.ARTBOARD_DATA2, Tag.ARTBOARD_DATA3):
+            data = self.tagged_blocks.get_data(key)
+            rect = data.get(b"artboardRect") if data is not None else None
+            if isinstance(rect, Descriptor):
+                _shift_numbers(rect, (b"Left", b"Rght"), dx)
+                _shift_numbers(rect, (b"Top ", b"Btom"), dy)
 
     def composite(
         self,

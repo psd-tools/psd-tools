@@ -4,6 +4,11 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [api] ``Layer.duplicate()`` places an artboard copy 100 px to the right of its
+  source, as Photoshop does, instead of on top of it. **Behaviour change** for
+  artboards; pass ``offset=(0, 0)`` for the old placement. New ``offset=(dx, dy)``
+  moves any copy and its contents (#996)
+
 - [api] Add ``PSDImage.artboards``, the top-level artboards in z-order, and
   ``Artboard.background``, the stored background as an ``ArtboardBackground``
   (kind, RGB color, alpha) that does not depend on the document color mode.

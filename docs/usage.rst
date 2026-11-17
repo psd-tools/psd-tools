@@ -279,9 +279,12 @@ destination after the call; ``-1`` is the top. An out-of-range index raises
 same parent, or to the top of a different container. A copy placed directly
 above its source releases the clipped layers above the source, as Photoshop
 does. Artboards can only be duplicated at the document root, and the copy
-keeps the source's rectangle, so it overlaps the source; Photoshop moves it
-aside. Smart-object copies share the original content but have fresh instance
-IDs.
+lands 100 pixels to the right of the source at the same top, as in Photoshop,
+whatever else is there; the canvas is not resized to hold it. ``offset=(dx, dy)``
+moves the copy, with its descendants, masks, vector paths and smart-object and
+text transforms, by that many pixels instead, and applies to any layer;
+``offset=(0, 0)`` keeps an artboard on the source's rectangle. Smart-object
+copies share the original content but have fresh instance IDs.
 
 A layer can change its order within its group::
 
