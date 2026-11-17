@@ -77,7 +77,7 @@ class FilterEffect(BaseElement):
     depth: int | None = None
     max_channels: int | None = None
     channels: list | None = None
-    extra: object | None = None
+    extra: "FilterEffectExtra | None" = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> Self:
@@ -119,8 +119,8 @@ class FilterEffect(BaseElement):
 
         written += write_length_block(fp, writer, fmt="Q")
 
-        if self.extra is not None and hasattr(self.extra, "write"):
-            written += self.extra.write(fp)  # type: ignore[attr-defined]
+        if self.extra is not None:
+            written += self.extra.write(fp)
         return written
 
     def _write_body(self, fp: IO[bytes]) -> int:

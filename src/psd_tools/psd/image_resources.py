@@ -817,7 +817,7 @@ class Slices(BaseElement):
     """
 
     version: int = field(default=0, validator=in_((6, 7, 8)))
-    data: object = None
+    data: "SlicesV6 | DescriptorBlock | None" = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "Slices":
@@ -832,7 +832,7 @@ class Slices(BaseElement):
     def write(self, fp: IO[bytes], **kwargs: Any) -> int:
         """Write the structure to a file-like object and return the bytes written."""
         written = write_fmt(fp, "I", self.version)
-        if hasattr(self.data, "write"):
+        if self.data is not None:
             written += self.data.write(fp, padding=1)
         return written
 
@@ -915,7 +915,7 @@ class SliceV6(BaseElement):
     red: int = 0
     green: int = 0
     blue: int = 0
-    data: object = None
+    data: DescriptorBlock | None = None
 
     @classmethod
     def read(cls, fp: IO[bytes], **kwargs: Any) -> "SliceV6":
@@ -991,10 +991,7 @@ class SliceV6(BaseElement):
         written += write_fmt(fp, "2I", self.horizontal_align, self.vertical_align)
         written += write_fmt(fp, "4B", self.alpha, self.red, self.green, self.blue)
         if self.data is not None:
-            if hasattr(self.data, "write"):
-                written += self.data.write(fp, padding=1)
-            elif self.data:
-                written += write_bytes(fp, self.data)  # type: ignore[arg-type]
+            written += self.data.write(fp, padding=1)
         return written
 
 
