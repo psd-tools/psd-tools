@@ -254,7 +254,11 @@ class Stroke:
 
     @property
     def line_width(self) -> float:
-        """Stroke width in float; 1.0 if the file does not record a readable one."""
+        """Stroke width as recorded, in the unit the file stores it in.
+
+        Photoshop records points for a width set in points, so this is not
+        always pixels; 1.0 if the file does not record a readable one.
+        """
         return get_scalar(self._data, b"strokeStyleLineWidth", float, 1.0)
 
     @property
