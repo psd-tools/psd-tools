@@ -4,6 +4,7 @@ import pytest
 
 from psd_tools.api.layers import Artboard, ArtboardBackground, Group
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.color_convert import cmyk_to_rgb, lab_to_rgb
 from psd_tools.constants import ColorMode, Tag
 from psd_tools.psd.descriptor import Descriptor, Double, Integer, String
 
@@ -66,11 +67,23 @@ def test_background_white_and_black_ignore_color_mode(
     assert psd.artboards[0].background == ArtboardBackground(kind, color, 1.0)  # type: ignore[arg-type]
 
 
-def test_background_custom_color_survives_a_cmyk_document() -> None:
+@pytest.mark.parametrize("mode", [ColorMode.CMYK, ColorMode.LAB])
+def test_custom_background_composites_in_the_document_mode(mode: ColorMode) -> None:
     psd = PSDImage.open(full_name("artboard-bgcolor.psd"))
     expected = psd.artboards[0].background
-    psd._record.header.color_mode = ColorMode.CMYK
-    assert psd.artboards[0]._artboard_background_defaults() == (1.0, 0.0)
+    psd._record.header.color_mode = mode
+    color, alpha = psd.artboards[0]._artboard_background_defaults()
+    assert alpha == 1.0
+    assert isinstance(color, tuple)
+    assert len(color) == (4 if mode == ColorMode.CMYK else 3)
+    assert expected.color is not None
+    if mode == ColorMode.CMYK:
+        ink = tuple(1.0 - v for v in color)
+        assert cmyk_to_rgb(*ink) == pytest.approx(expected.color)
+    else:
+        lightness, a, b = color
+        rgb = lab_to_rgb(lightness * 100.0, a * 255.0 - 128.0, b * 255.0 - 128.0)
+        assert rgb == pytest.approx(expected.color, abs=1e-3)
     assert psd.artboards[0].background == expected
 
 

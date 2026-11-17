@@ -14,6 +14,9 @@ Changelog
   (kind, RGB color, alpha) that does not depend on the document color mode.
   ``PSDImage.composite()`` is documented as spanning the whole canvas (#901)
 
+- [fix] ``Artboard.composite()`` applies a custom background color on CMYK and Lab
+  documents instead of rendering it transparent (#901)
+
 - [fix] A PSB file wider or taller than 30,000 px is no longer rejected by
   ``numpy()``, ``topil()`` or ``composite()``; the per-axis limit is now
   300,000 px for PSB and stays 30,000 px for PSD. ``max_alloc_bytes`` still
