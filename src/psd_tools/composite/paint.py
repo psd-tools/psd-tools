@@ -266,7 +266,7 @@ def create_fill(
     if (desc := blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)) is not None:
         if Key.Color in desc:
             return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
-        elif Key.Pattern in desc:
+        elif Enum.Pattern in desc:
             return draw_pattern_fill(viewport, layer._psd, desc)
         elif Key.Gradient in desc:
             return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
