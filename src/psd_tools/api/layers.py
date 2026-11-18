@@ -156,6 +156,8 @@ from psd_tools.terminology import Key
 
 logger = logging.getLogger(__name__)
 
+_CLIPPING_LAYER_MSG = "clipping_layer is deprecated, use clipping instead."
+
 
 def _compression_for(compression: Compression, depth: int) -> Compression:
     """Return the codec to store a channel with, given the document's *depth*.
@@ -1124,18 +1126,17 @@ class Layer(LayerProtocol):
 
     @property
     def clipping_layer(self) -> bool:
-        """Deprecated. Use clipping property instead."""
-        logger.warning(
-            "clipping_layer property is deprecated. Use clipping property instead."
-        )
+        """
+        Use ``clipping`` instead.
+
+        .. deprecated:: 1.27.0
+        """
+        warnings.warn(_CLIPPING_LAYER_MSG, DeprecationWarning, stacklevel=2)
         return self.clipping
 
     @clipping_layer.setter
     def clipping_layer(self, value: bool) -> None:
-        """Use ``clipping`` instead (deprecated)."""
-        logger.warning(
-            "clipping_layer property is deprecated. Use clipping property instead."
-        )
+        warnings.warn(_CLIPPING_LAYER_MSG, DeprecationWarning, stacklevel=2)
         self.clipping = value
 
     def has_effects(self, enabled: bool = True, name: str | None = None) -> bool:
@@ -1577,10 +1578,17 @@ class Layer(LayerProtocol):
 
     def delete_layer(self) -> Self:
         """
-        Use ``layer.parent.remove(layer)`` instead (deprecated).
+        Use ``layer.parent.remove(layer)`` instead.
+
+        .. deprecated:: 1.27.0
 
         :raises ValueError: If the layer is not attached to a document
         """
+        warnings.warn(
+            "delete_layer() is deprecated, use layer.parent.remove(layer) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._require_attached()
         self.parent.remove(self)  # type: ignore[union-attr]
         return self
@@ -1645,10 +1653,17 @@ class Layer(LayerProtocol):
 
     def move_to_group(self, group: "GroupMixin") -> Self:
         """
-        Use ``layer.move_to(group)`` instead (deprecated).
+        Use ``layer.move_to(group)`` instead.
+
+        .. deprecated:: 1.27.0
 
         :param group: The group the current layer will be moved into.
         """
+        warnings.warn(
+            "move_to_group() is deprecated, use move_to() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         group._extend([self])
         return self
 
@@ -2563,7 +2578,9 @@ class Group(GroupMixin, Layer):
         open_folder: bool = True,
     ) -> Self:
         """
-        Use ``parent.create_group(layer_list, name)`` instead (deprecated).
+        Use ``parent.create_group(layer_list, name)`` instead.
+
+        .. deprecated:: 1.27.0
 
         :param parent: The parent group to add the newly created Group object into.
         :param layers: The layers to group. Can by any subclass of
@@ -2575,6 +2592,11 @@ class Group(GroupMixin, Layer):
         :return: A :py:class:`~psd_tools.api.layers.Group`
         :raises ValueError: If layers is empty
         """
+        warnings.warn(
+            "group_layers() is deprecated, use parent.create_group() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if len(layers) == 0:
             raise ValueError("Cannot create a group from an empty list of layers")
         parent._reject_cross_document(layers)

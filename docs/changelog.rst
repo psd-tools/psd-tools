@@ -4,6 +4,11 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [api] ``Layer.move_to_group()``, ``Group.group_layers()``, ``Layer.delete_layer()`` and
+  ``Layer.clipping_layer`` emit ``DeprecationWarning``; use ``move_to()``,
+  ``create_group()``, ``parent.remove()`` and ``clipping``. ``clipping_layer`` warned
+  through ``logging`` before, so ``-W error`` now fails on it (#1007)
+
 - [api] **Backwards-incompatible.** Adding a layer from another document with
   ``append()``, ``extend()``, ``insert()``, item assignment, ``create_group()``,
   ``move_to_group()`` or ``group_layers()`` raises ``ValueError`` instead of moving
