@@ -1,6 +1,13 @@
 Changelog
 =========
 
+1.28.0 (unreleased)
+-------------------
+
+- [docs] ``PSDImage`` is documented once, under ``psd_tools``; the
+  ``psd_tools.api`` page is now an overview that links to it. The package-level
+  warnings are documented there too.
+
 1.27.0 (2026-11-18)
 -------------------
 

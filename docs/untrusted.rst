@@ -86,20 +86,20 @@ runs, so changing it affects documents that are already open. That variable is
 read from ``$PSD_TOOLS_MAX_ALLOC_BYTES`` at import, and is the built-in default
 when the variable is unset. An invalid environment or ``MAX_ALLOC_BYTES`` value
 warns and gives the built-in default. An invalid API value raises :class:`TypeError` or
-:class:`ValueError`, and :py:meth:`~psd_tools.api.psd_image.PSDImage.open`
+:class:`ValueError`, and :py:meth:`~psd_tools.PSDImage.open`
 checks it before reading the file.
 
 What it bounds
 --------------
 
-- :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy` and
-  :py:meth:`~psd_tools.api.psd_image.PSDImage.topil`. The estimate is the
+- :py:meth:`~psd_tools.PSDImage.numpy` and
+  :py:meth:`~psd_tools.PSDImage.topil`. The estimate is the
   peak of the call, including its intermediates, so it depends on the colour
   mode, depth and compression and is larger than the array returned.
-- :py:meth:`~psd_tools.api.psd_image.PSDImage.thumbnail`, at the size of the
+- :py:meth:`~psd_tools.PSDImage.thumbnail`, at the size of the
   decoded image; the JPEG decoder's own intermediates are not counted.
 - Each layer's ``numpy()`` and ``topil()``, at the layer's own size, including
-  the reads that :py:meth:`~psd_tools.api.psd_image.PSDImage.composite` makes.
+  the reads that :py:meth:`~psd_tools.PSDImage.composite` makes.
 - The canvas that ``composite()`` builds, and each canvas that a stroke size,
   vector stroke width or pattern scale grows. A layer effect over the budget is
   skipped; a vector stroke or fill layer over it raises.
@@ -130,7 +130,7 @@ Malformed data in a file raises only :py:class:`ValueError`, including
 :py:class:`~psd_tools.ParseLimitError` and
 :py:class:`~psd_tools.compression.DecompressionLimitError`, or
 :py:class:`OSError`. This holds for every call that reads a document, such as
-:py:meth:`~psd_tools.api.psd_image.PSDImage.open`, ``numpy()``, ``topil()``,
+:py:meth:`~psd_tools.PSDImage.open`, ``numpy()``, ``topil()``,
 ``composite()`` and ``thumbnail()``. Any other exception type from these calls
 is a bug, so this is enough to guard them::
 

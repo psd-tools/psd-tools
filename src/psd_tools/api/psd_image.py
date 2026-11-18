@@ -158,7 +158,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param depth: Bit depth, or ``None`` to select 1 for mode ``"1"`` and
             8 otherwise. Mode ``"1"`` accepts only 1; every other mode accepts
             8, 16 or 32.
-        :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
+        :return: A :py:class:`~psd_tools.PSDImage` object.
 
         .. note::
             A ``depth=32`` document carries the default ``hdrt`` (HDR toning)
@@ -213,7 +213,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             :py:meth:`~PSDImage.new` ``color``. When set,
             :py:meth:`~PSDImage.save` will composite layers against an
             opaque backdrop of this color.
-        :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
+        :return: A :py:class:`~psd_tools.PSDImage` object.
         """
         header = cls._make_header(image.mode, image.size)
         # TODO: Add default metadata.
@@ -275,7 +275,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             See :doc:`/untrusted` for the precedence and what it does not bound.
         :param encoding: charset encoding of the pascal string within the file,
             default 'macroman'. Some psd files need explicit encoding option.
-        :return: A :py:class:`~psd_tools.api.psd_image.PSDImage` object.
+        :return: A :py:class:`~psd_tools.PSDImage` object.
         :raises TypeError: if ``max_alloc_bytes`` is not an int, a string or
             ``None``, or is a bool.
         :raises ValueError: if ``max_alloc_bytes`` is not positive or is a
@@ -625,7 +625,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         """
         Minimal bounding box that contains all the visible layers.
 
-        Use :py:attr:`~psd_tools.api.psd_image.PSDImage.viewbox` to get
+        Use :py:attr:`~psd_tools.PSDImage.viewbox` to get
         viewport bounding box. When the psd is empty, bbox is equal to the
         canvas bounding box.
 

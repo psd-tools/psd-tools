@@ -327,7 +327,7 @@ class GroupMixinProtocol(Protocol):
     protocol. ``parent`` is declared here for the type checker only; the
     properties that implement it are :py:attr:`Layer.parent
     <psd_tools.api.layers.Layer.parent>` and :py:attr:`PSDImage.parent
-    <psd_tools.api.psd_image.PSDImage.parent>`.
+    <psd_tools.PSDImage.parent>`.
     """
 
     def __len__(self) -> int:
