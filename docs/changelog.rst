@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.27.0 (unreleased)
+1.27.0 (2026-11-18)
 -------------------
 
 - [fix] Drop shadow spread on a large feathered or masked layer no longer scales
@@ -17,10 +17,9 @@ Changelog
   by ``phase``, in shape and pattern fill layers drawn without the stored pixels. It
   started at the layer's top-left, so the tiles were out of phase (#1106, #1107)
 
-- [fix] A scaled pattern is sampled as Photoshop does, at a fractional tile size,
-  instead of being resized to a whole-pixel tile that drifts out of phase across the
-  fill. This changes the pixels of scaled pattern fills, pattern overlays and pattern
-  strokes drawn without the stored pixels; 33% scales are still a little off (#1106)
+- [fix] A scaled pattern is sampled at a fractional tile size as Photoshop does, not
+  a whole-pixel tile that drifts out of phase. This changes the pixels of scaled
+  patterns drawn without the stored pixels (#1106)
 
 - [api] ``Layer.move_to_group()``, ``Group.group_layers()``, ``Layer.delete_layer()`` and
   ``Layer.clipping_layer`` emit ``DeprecationWarning``; use ``move_to()``,
@@ -57,45 +56,45 @@ Changelog
 - [fix] ``get_pattern()`` no longer over-rejects, under ``max_alloc_bytes``, a pattern
   whose channels declare different rectangles; each channel is sized by its own (#927)
 
-- [fix] Writing a version 2 legacy bevel effect (``BevelInfo``) emits its real
-  highlight and shadow colours instead of repeating the plain ones, and no
-  longer writes them for versions above 2, which ``read()`` never consumed.
-  A version 2 bevel without real colours raises ``ValueError`` (#1095)
+- [fix] Writing a version 2 ``BevelInfo`` emits its real highlight and shadow
+  colours; one without them raises ``ValueError`` (#1095)
 
-- [api] Annotate the ``object``-typed fields of ``psd_tools.psd`` structures
-  (``Curves.extra``, ``PlacedLayerData.warp``, ``Slices.data``, effect colours
-  and others) with their real types. ``PlacedLayerData.warp`` now defaults to
-  an empty ``DescriptorBlock2`` instead of ``None`` (#917)
+- [api] Annotate the ``object``-typed fields of ``psd_tools.psd`` structures with
+  their real types. ``PlacedLayerData.warp`` now defaults to an empty
+  ``DescriptorBlock2`` instead of ``None`` (#917)
 
-- [fix] A vector stroke whose width is stored in points is rendered at
-  points x resolution / 72 pixels instead of the bare number, so strokes on
-  non-72 dpi documents are no longer drawn too thin. ``Stroke.line_width``
-  still returns the stored number, now documented as such (#853, #1085)
+- [fix] A vector stroke width stored in points is drawn at points x resolution / 72
+  pixels, so strokes on non-72 dpi documents are no longer too thin (#853, #1085)
+
 - [api] Add ``Layer.effects_bbox``, the layer box grown to hold its rendered
   strokes and drop shadows, and ``composite(include_effects=True)`` to
   composite on it. The default viewport is unchanged (#797)
+
 - [docs] Link Python, NumPy and Pillow types in the API reference through
   intersphinx (#847)
+
 - [fix] Clipped layers no longer over-attenuate the color of partially
   transparent pixel and group bases (#1057)
+
 - [fix] Layers clipped to an adjustment layer over a partially transparent
   backdrop no longer over-darken the adjusted color (#1067)
+
 - [fix] Rendering an 8-bit RGB document to PIL preserves fully opaque alpha
-  instead of exporting 254 when floating-point compositing falls just below 1. (#1054)
-- [fix] Composite a simple Normal clipped pixel layer above its base's Color
-  Overlay when interior effects are grouped but clipped layers are not. Other
-  interior effects keep the previous order (#1055, #1065)
+  instead of exporting 254 when floating-point compositing falls just below 1 (#1054)
+
+- [fix] A simple Normal clipped pixel layer composites above its base's Color
+  Overlay when interior effects are grouped but clipped layers are not (#1055, #1065)
+
 - [fix] Color Dodge respects Fill and Transparency Shapes Layer on RGB8 pixel
   layers, including pixel masks and opacity (#1056)
+
 - [fix] Vertical Gradient Overlays on RGB8 pixel and shape layers use the layer
   height as the gradient span instead of its width. Applies to Classic,
   non-dithered, aligned gradients with integer endpoints (#1062)
-- [fix] A drop shadow layer effect is now rendered when a document is
-  composited from its layers, instead of being dropped. It fades with the
-  layer's opacity but not its fill opacity; contour and noise are not
-  applied, and the blur approximates Photoshop's. With "layer knocks out
-  drop shadow" on, a layer at full fill cuts nothing until it is opaque.
-  Needs ``scipy``, as strokes do (#679, #1069)
+
+- [fix] A drop shadow layer effect is rendered when compositing from layers; it was
+  dropped. Contour and noise are not applied and the blur approximates Photoshop's.
+  Needs ``scipy`` (#679, #1069)
 
 1.26.1 (2026-11-11)
 -------------------
