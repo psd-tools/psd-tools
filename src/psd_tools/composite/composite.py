@@ -2124,6 +2124,7 @@ class Compositor:
         return color, shape, alpha, isolate_adjustments
 
     def _effective_force(self, layer: Layer) -> bool:
+        """Effective force; valid only after ``_read_object`` has evaluated the layer."""
         return self._force and id(layer) not in self._stored_fallback
 
     def _redraws(self, layer: Layer) -> bool:
@@ -2153,10 +2154,8 @@ class Compositor:
                 logger.debug("Cannot read the fill of %s: %s", layer, error)
                 unreadable = True
             if unreadable:
-                # The stored pixels stand in, so downstream mask and stroke
-                # steps treat the layer as stored rather than redrawn (#1059);
-                # without a stored color the layer covers nothing, whatever
-                # shape it carries.
+                # The stored pixels stand in (#1059); without a stored color
+                # the layer covers nothing, whatever shape it carries.
                 if color is None:
                     shape = None
                 else:
@@ -2401,7 +2400,6 @@ class Compositor:
             and not layer.mask.disabled
             and not self._mask_repeats_shape(layer)
         ):
-            # TODO: When force, ignore real mask.
             mask = layer.numpy("mask", real_mask=not self._effective_force(layer))
             if mask is not None:
                 shape = paste(

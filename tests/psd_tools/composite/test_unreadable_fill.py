@@ -264,3 +264,8 @@ def test_a_stored_pixel_fallback_casts_the_stored_drop_shadow() -> None:
     )
     assert stored is not None and forced is not None
     assert np.array_equal(np.asarray(forced), np.asarray(stored))
+    left, top, right, bottom = forged_layer.bbox
+    forced_alpha = np.asarray(forced)[:, :, 3]
+    outside = np.ones(forced_alpha.shape, dtype=bool)
+    outside[top:bottom, left:right] = False
+    assert np.any(forced_alpha[outside] > 0)
