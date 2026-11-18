@@ -126,11 +126,11 @@ def test_a_malformed_smart_object_block_does_not_shadow_the_fallback(
     assert getattr(SmartObject(layer), attribute) is expected
 
 
-def test_moving_a_layer_tolerates_a_malformed_pattern_block() -> None:
+def test_copying_a_layer_tolerates_a_malformed_pattern_block() -> None:
     source = PSDImage.open(full_name("adjustment-fillers.psd"))
     _corrupt(source, Tag.PATTERNS1)
     target = PSDImage.new("RGB", (30, 30))
-    target.append(source[0])
+    source[0].copy_to(target)
     assert target[0]._psd is target
 
 

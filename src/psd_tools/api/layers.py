@@ -1810,7 +1810,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         - a group's, because :py:meth:`Group.extract_bbox` filters children
           through ``is_visible()``, which walks up the parent chain;
         - a vector-mask-only shape's, because it scales the mask's normalized
-          bounds by ``self._psd`` size, which a cross-document move changes.
+          bounds by ``self._psd`` size.
 
         Reparenting can do both; toggling a group's visibility (#819) only the
         first. An ordinary layer's box is its record's offsets and is kept.
@@ -1850,7 +1850,8 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         :raises IndexError: If the index is out of range.
         :raises TypeError: If the key is not an index, or the provided object
             is not a Layer instance.
-        :raises ValueError: If attempting to add a group to itself.
+        :raises ValueError: If attempting to add a group to itself, or a layer
+            of another document; use :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
         """
         if isinstance(key, slice):
             raise TypeError("Slice assignment is not supported")
@@ -1975,13 +1976,16 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         :param open_folder: Whether the group is an open folder in the Photoshop UI.
         :return: The created :py:class:`~psd_tools.api.layers.Group` object.
         """
+        pending = None if layer_list is None else list(layer_list)
+        if pending is not None:
+            self._reject_cross_document(pending)
         group = Group.new(parent=self, name=name, open_folder=open_folder)
         # Against ``None``, not truthiness: ``layer_list`` is any iterable, and
         # one can be falsey while holding layers, or refuse to be tested at all
         # -- ``bool()`` on a multi-element NumPy array raises. ``extend()``
         # handles an empty iterable itself (#820).
-        if layer_list is not None:
-            group._extend(layer_list)
+        if pending is not None:
+            group._extend(pending)
         group.opacity = opacity
         group.blend_mode = blend_mode
         self._psd.mark_updated()
@@ -1995,13 +1999,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         Adding the same layer will not create a duplicate; it moves to the end
         instead. See ``extend()``, which this delegates to.
 
-        .. deprecated:: 1.25.0
-            Moving a layer in from another document will raise ``ValueError``. Use
-            :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
-
         :param layer: The layer to add.
         :raises TypeError: If the provided object is not a Layer instance.
-        :raises ValueError: If attempting to add a group to itself.
+        :raises ValueError: If attempting to add a group to itself, or a layer
+            of another document; use :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
         """
         self._extend([layer])
 
@@ -2017,13 +2018,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
 
             dest.extend(src)  # Moves every layer of src into dest.
 
-        .. deprecated:: 1.25.0
-            Moving a layer in from another document will raise ``ValueError``. Use
-            :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
-
         :param layers: The layers to add.
         :raises TypeError: If the provided object is not a Layer instance.
-        :raises ValueError: If attempting to add a group to itself.
+        :raises ValueError: If attempting to add a group to itself, or a layer
+            of another document; use :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
         """
         self._extend(layers)
 
@@ -2047,12 +2045,10 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 layer for index, layer in enumerate(pending) if last[id(layer)] == index
             ]
         self._check_insertion(pending)
-        self._warn_if_cross_document(pending)
-        converted = self._reencode_moved(pending)
+        self._reject_cross_document(pending)
         # Remove parent's reference to the layers.
         donors: list[GroupMixin] = []
         seen: set[int] = set()
-        donor_psds: dict[int, PSDProtocol] = {}
         for layer in pending:
             # NOTE: New or removed layers may not be in the parent container.
             if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
@@ -2066,25 +2062,12 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                 if id(donor) not in seen:
                     seen.add(id(donor))
                     donors.append(donor)
-                    # Read here, not off ``donors`` afterwards:
-                    # ``_update_children()`` below repoints a moved layer's
-                    # ``_psd``, and a donor group that is itself one of
-                    # ``pending`` would by then name the receiving document.
-                    if donor._psd is not self._psd:
-                        donor_psds.setdefault(id(donor._psd), donor._psd)
         self._layers.extend(pending)
-        self._update_children(converted)
+        for layer in pending:
+            layer._parent = self
         self._psd._update_record()
-        # The donor document keeps its own flat record list, and ``save()``
-        # writes that list without rebuilding it, so a cross-document move that
-        # only rebuilt the receiving document would write the layer into both
-        # files (#841). Rebuilding also marks the donor updated, which tells
-        # its ``save()`` to regenerate a preview that no longer has the layer.
-        for donor_psd in donor_psds.values():
-            donor_psd._update_record()
         # Last only because by then the tree is consistent and a caller that
-        # reads a box next recomputes it once. ``_update_record()`` reads no
-        # bounding box, so any point after ``_update_children()`` would do.
+        # reads a box next recomputes it once.
         for donor in donors:
             donor._invalidate_bbox()
         for layer in pending:
@@ -2100,49 +2083,35 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         no-duplicates rule of ``extend()``, so the index it lands at is one
         lower than the given one when it came from before that position.
 
-        .. deprecated:: 1.25.0
-            Moving a layer in from another document will raise ``ValueError``. Use
-            :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
-
         :param index: The index to insert the layer at.
         :param layer: The layer to insert.
         :raises TypeError: If the provided object is not a Layer instance.
-        :raises ValueError: If attempting to add a group to itself.
+        :raises ValueError: If attempting to add a group to itself, or a layer
+            of another document; use :py:meth:`~psd_tools.api.layers.Layer.copy_to`.
         """
         self._insert(index, layer)
 
     def _insert(self, index: int, layer: Layer) -> None:
         self._check_insertion([layer])
-        self._warn_if_cross_document([layer])
-        converted = self._reencode_moved([layer])
+        self._reject_cross_document([layer])
         # Remove parent's reference to the layer.
         donor: GroupMixin | None = None
-        donor_psd: PSDProtocol | None = None
         if isinstance(layer.parent, GroupMixin) and layer in layer.parent:
             donor = layer.parent
             donor._layers.remove(layer)  # Skip checks for performance
-            if donor._psd is not self._psd:
-                donor_psd = donor._psd
         self._layers.insert(index, layer)
-        self._update_children(converted)
+        layer._parent = self
         self._psd._update_record()
-        # See ``extend()``: the donor document's record list is stale until it
-        # is rebuilt too, and ``save()`` never rebuilds it (#841).
-        if donor_psd is not None:
-            donor_psd._update_record()
         if donor is not None:
             donor._invalidate_bbox()
         _invalidate_moved_bbox(layer)
         self._invalidate_bbox()
 
-    def _warn_if_cross_document(self, layers: Iterable[Layer]) -> None:
-        # stacklevel 4: here, ``_extend``/``_insert``, the public method, its caller.
+    def _reject_cross_document(self, layers: Iterable[Layer]) -> None:
         if any(layer._psd is not self._psd for layer in layers):
-            warnings.warn(
-                "Moving a layer into another document is deprecated and will "
-                "become a copy; use Layer.copy_to() to copy it and keep the source.",
-                DeprecationWarning,
-                stacklevel=4,
+            raise ValueError(
+                "A layer cannot be moved into another document; "
+                "use Layer.copy_to() to copy it."
             )
 
     def remove(self, layer: Layer) -> Self:
@@ -2234,49 +2203,6 @@ class GroupMixin(GroupMixinProtocol, Protocol):
                     "This operation would create a reference loop "
                     f"within the group between {self} and {layer}"
                 )
-
-    def _reencode_moved(
-        self, layers: Iterable[Layer]
-    ) -> dict[int, tuple[LayerRecord, ChannelDataList]]:
-        """Re-encode every moved layer, and its descendants, for this document.
-
-        Run before either tree changes, so a conversion that raises leaves both
-        documents as they were. Keyed by ``id(layer)``.
-        """
-        converted: dict[int, tuple[LayerRecord, ChannelDataList]] = {}
-        for layer in layers:
-            nodes = [layer]
-            if isinstance(layer, GroupMixin):
-                nodes.extend(layer.descendants())
-            for node in nodes:
-                if node._psd != self._psd:
-                    result = node._reencode(self)
-                    if result is not None:
-                        converted[id(node)] = result
-        return converted
-
-    def _update_children(
-        self,
-        converted: dict[int, tuple[LayerRecord, ChannelDataList]],
-        transfer: ResourceTransfer | None = None,
-    ) -> None:
-        """Update children's _psd and _parent references.
-
-        *converted* is what :py:meth:`_reencode_moved` returned.
-        """
-        transfer = transfer or ResourceTransfer(self._psd)
-        for layer in self:
-            # Update PSD reference if needed
-            if layer._psd != self._psd:
-                if id(layer) in converted:
-                    layer._apply_reencoded(converted[id(layer)])
-                transfer.add(layer._psd, _layer_records(layer))
-                layer.__dict__.pop("_smart_object", None)
-                layer._psd = self._psd
-            # Update parent reference
-            layer._parent = self
-            if isinstance(layer, GroupMixin):
-                layer._update_children(converted, transfer)
 
     def is_visible(self) -> bool:
         """Return visibility of the element."""
@@ -2649,6 +2575,7 @@ class Group(GroupMixin, Layer):
         """
         if len(layers) == 0:
             raise ValueError("Cannot create a group from an empty list of layers")
+        parent._reject_cross_document(layers)
         group = cls.new(parent, name, open_folder)
         group._extend(layers)
         return group

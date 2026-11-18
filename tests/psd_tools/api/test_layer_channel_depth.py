@@ -179,7 +179,7 @@ def test_a_depth_only_move_re_encodes_the_channels(
     )
     layer.create_mask(Image.fromarray(OFFSET_MASK, "L"), top=MASK_TOP, left=MASK_LEFT)
 
-    PSDImage.new("RGB", (16, 16), depth=dest_depth).append(layer)
+    layer = layer.copy_to(PSDImage.new("RGB", (16, 16), depth=dest_depth))
 
     array = layer.numpy()
     assert array is not None
@@ -201,7 +201,7 @@ def test_a_version_only_move_re_encodes_the_channels() -> None:
 
     destination = PSDImage.open(full_name("2layers.psb"))
     assert destination.version == 2 and source.version == 1
-    destination.append(layer)
+    layer = layer.copy_to(destination)
 
     array = layer.numpy()
     assert array is not None
@@ -268,7 +268,7 @@ def test_a_depth_only_move_re_encodes_a_real_mask_channel() -> None:
         ChannelID.REAL_USER_LAYER_MASK,
     }
 
-    PSDImage.new("RGB", (32, 32), depth=16).append(layer)
+    layer = layer.copy_to(PSDImage.new("RGB", (32, 32), depth=16))
 
     after = _decode_mask_channels(layer, 16, 1)
     assert set(after) == set(before)
@@ -291,7 +291,7 @@ def test_a_cross_mode_move_re_encodes_at_the_destinations_version() -> None:
     destination = PSDImage.open(full_name("2layers.psb"))
     assert destination.version == 2 and source.version == 1
     assert destination.pil_mode != source.pil_mode
-    destination.append(layer)
+    layer = layer.copy_to(destination)
 
     array = layer.numpy()
     assert array is not None
@@ -313,7 +313,7 @@ def test_a_depth_only_move_keeps_the_layer_record() -> None:
     layer.opacity = 77
     layer.blend_mode = BlendMode.MULTIPLY
 
-    PSDImage.new("RGB", (16, 16), depth=16).append(layer)
+    layer = layer.copy_to(PSDImage.new("RGB", (16, 16), depth=16))
 
     assert layer.opacity == 77
     assert layer.blend_mode == BlendMode.MULTIPLY
@@ -328,7 +328,7 @@ def test_a_cross_mode_move_keeps_the_layer_record(dest_depth: Literal[8, 16]) ->
     layer.opacity = 77
     layer.blend_mode = BlendMode.MULTIPLY
 
-    PSDImage.new("CMYK", (16, 16), depth=dest_depth).append(layer)
+    layer = layer.copy_to(PSDImage.new("CMYK", (16, 16), depth=dest_depth))
 
     assert layer.opacity == 77
     assert layer.blend_mode == BlendMode.MULTIPLY
@@ -348,7 +348,8 @@ def test_a_mask_read_before_a_move_still_edits_the_record(mode: str) -> None:
     layer.create_mask(Image.fromarray(MASK, "L"))
     assert layer.mask is not None
 
-    PSDImage.new(cast(Any, mode), (16, 16), depth=16).append(layer)
+    layer = layer.copy_to(PSDImage.new(cast(Any, mode), (16, 16), depth=16))
+    assert layer.mask is not None
     layer.mask.disabled = True
 
     assert layer._record.mask_data is not None
@@ -379,7 +380,7 @@ def test_a_cross_mode_move_into_a_deep_document_uses_that_depth() -> None:
     source = PSDImage.new("RGB", (16, 16), depth=8)
     layer = source.create_pixel_layer(_image(), name="L")
 
-    PSDImage.new("CMYK", (16, 16), depth=16).append(layer)
+    layer = layer.copy_to(PSDImage.new("CMYK", (16, 16), depth=16))
 
     expected = _row_size(layer.width, 16) * layer.height
     for info, channel in zip(layer._record.channel_info, layer._channels, strict=True):
@@ -534,7 +535,7 @@ def test_a_move_between_documents_that_differ_only_in_alpha_is_exact(
     channels = len(layer._channels)
     assert before is not None
 
-    destination.append(layer)
+    layer = layer.copy_to(destination)
 
     after = layer.numpy()
     assert after is not None
@@ -553,7 +554,7 @@ def test_narrowing_a_32bit_layer_still_tone_maps() -> None:
     assert image is not None
     expected = np.asarray(image.convert(destination.pil_mode), np.float32) / 255
 
-    destination.append(layer)
+    layer = layer.copy_to(destination)
 
     array = layer.numpy()
     assert array is not None
@@ -573,7 +574,7 @@ def test_a_non_pixel_layer_move_re_encodes_its_channels(
     opacity, blend, tags = layer.opacity, layer.blend_mode, len(layer.tagged_blocks)
 
     dest = PSDImage.new(mode, (source.width, source.height), depth=depth)
-    dest.append(layer)
+    layer = layer.copy_to(dest)
 
     ids = [info.id for info in layer._record.channel_info]
     assert [i for i in ids if i >= 0] == list(range(count))
@@ -592,7 +593,7 @@ def test_a_text_layer_keeps_its_pixels_across_a_depth_move() -> None:
     before = layer.numpy("color")
     assert before is not None
 
-    PSDImage.new("RGB", (source.width, source.height), depth=16).append(layer)
+    layer = layer.copy_to(PSDImage.new("RGB", (source.width, source.height), depth=16))
 
     after = layer.numpy("color")
     assert after is not None
@@ -607,7 +608,7 @@ def test_a_group_mask_survives_a_depth_move() -> None:
     assert before is not None
 
     dest = PSDImage.new("RGB", (source.width, source.height), depth=16)
-    dest.append(group)
+    group = group.copy_to(dest)
     dest.save(io.BytesIO())
 
     assert group.mask is not None
@@ -616,30 +617,19 @@ def test_a_group_mask_survives_a_depth_move() -> None:
     np.testing.assert_array_equal(np.asarray(after), np.asarray(before))
 
 
-@pytest.mark.parametrize("method", ["append", "extend", "insert"])
 @pytest.mark.parametrize("mode", ["L", "CMYK"])
-def test_a_failed_cross_document_move_changes_neither_document(
-    method: str, mode: str
-) -> None:
+def test_a_failed_cross_document_copy_changes_neither_document(mode: str) -> None:
     source = PSDImage.open(full_name("descriptors/lab-color-swatches.psd"))
     pixel = next(layer for layer in source if layer.kind == "pixel")
     group = source.create_group([pixel], name="group")
-    empty = source.create_group(name="empty")
     tops = list(source)
     dest = PSDImage.new(mode, source.size)
-    kept = [info.id for info in empty._record.channel_info]
 
     with pytest.raises(ValueError, match="LAB"):
-        if method == "insert":
-            dest.insert(0, group)
-        elif method == "append":
-            dest.append(group)
-        else:
-            dest.extend([empty, group])
+        group.copy_to(dest)
 
     assert len(dest) == 0
     assert list(source) == tops
     assert list(group) == [pixel]
-    assert (pixel.parent, group.parent, empty.parent) == (group, source, source)
-    assert pixel._psd is group._psd is empty._psd is source
-    assert [info.id for info in empty._record.channel_info] == kept
+    assert (pixel.parent, group.parent) == (group, source)
+    assert pixel._psd is group._psd is source

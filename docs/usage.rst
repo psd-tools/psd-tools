@@ -197,8 +197,7 @@ Insert a layer to a specific index in the group::
 
     group.insert(3, layer)
 
-Adding a layer from another document moves it out of that document, and emits a
-``DeprecationWarning``: it will raise ``ValueError``. Copy it
+Adding a layer from another document raises ``ValueError``. Copy it
 instead::
 
     copy = layer.copy_to(other_psdimage)

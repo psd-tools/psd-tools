@@ -124,33 +124,17 @@ def test_a_clashing_pattern_id_is_remapped_with_its_format_kept() -> None:
     np.testing.assert_array_equal(_pixels(copy), _pixels(layer))
 
 
-@pytest.mark.parametrize("operation", ["extend", "group"])
-def test_layers_sharing_a_clashing_pattern_share_one_transfer(operation: str) -> None:
+def test_layers_sharing_a_clashing_pattern_share_one_transfer() -> None:
     source, layer = _pattern_source()
     twin = layer.duplicate()
     dest = PSDImage.open(full_name("layers/pattern-fill.psd"))
     _patterns(dest)[0].name = "unrelated"
 
-    if operation == "extend":
-        dest.extend([layer, twin])
-        copies = [layer, twin]
-    else:
-        group = source.create_group([layer, twin], name="G")
-        copies = list(group.copy_to(dest))
+    group = source.create_group([layer, twin], name="G")
+    copies = list(group.copy_to(dest))
 
     assert len(_patterns(dest)) == 2
     assert len({_pattern_ref(c).value for c in copies}) == 1
-
-
-def test_a_move_carries_the_pattern_and_leaves_none_shared() -> None:
-    source, layer = _pattern_source()
-    dest = PSDImage.new("RGB", source.size)
-    original = _patterns(source)[0]
-
-    dest.append(layer)
-
-    assert _patterns(dest)[0] == original
-    assert _patterns(dest)[0] is not original
 
 
 @pytest.mark.parametrize("tag", [Tag.PATTERNS2, Tag.PATTERNS3])
@@ -195,19 +179,6 @@ def test_copy_carries_the_smart_object_data() -> None:
     assert _linked(dest)[0] is not _linked(source)[0]
     assert layer.smart_object.data
     assert len(_linked(source)) == 1
-
-
-def test_a_move_carries_the_smart_object_data() -> None:
-    source, layer = _smart_source()
-    expected = layer.smart_object.data
-    original = _linked(source)[0]
-    dest = PSDImage.new("RGB", source.size)
-
-    dest.append(layer)
-
-    assert layer.smart_object.data == expected
-    assert layer.smart_object._data is _linked(dest)[0]
-    assert layer.smart_object._data is not original
 
 
 def test_a_clashing_smart_object_id_is_remapped() -> None:

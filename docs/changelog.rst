@@ -4,6 +4,11 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [api] **Backwards-incompatible.** Adding a layer from another document with
+  ``append()``, ``extend()``, ``insert()``, item assignment, ``create_group()``,
+  ``move_to_group()`` or ``group_layers()`` raises ``ValueError`` instead of moving
+  it, as announced in 1.25.0. Use ``Layer.copy_to()`` (#1005, #1001)
+
 - [api] ``Layer.duplicate()`` places an artboard copy 100 px to the right of its
   source, as Photoshop does, instead of on top of it. **Behaviour change** for
   artboards; pass ``offset=(0, 0)`` for the old placement. New ``offset=(dx, dy)``
