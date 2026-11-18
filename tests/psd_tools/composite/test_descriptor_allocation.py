@@ -337,3 +337,39 @@ def test_a_forged_pattern_record_is_rejected_by_the_fill() -> None:
     psd._max_alloc_bytes = 1 << 28
     with pytest.raises(ValueError, match="over the configured budget"):
         draw_pattern_fill(psd.viewbox, psd, desc)
+
+
+@pytest.mark.parametrize("percent", [50.0, 170.0])
+@pytest.mark.parametrize("viewport", [(0, 0, 30000, 1), (0, 0, 1, 30000)])
+def test_the_sampling_estimate_covers_a_thin_viewport_of_a_tiny_panel(
+    monkeypatch: pytest.MonkeyPatch, percent: float, viewport: tuple[int, int, int, int]
+) -> None:
+    """Along a long axis the coordinate arrays outweigh the pixels."""
+    psd, desc, _ = _pattern()
+    desc[b"Scl "] = Double(percent)
+    panel = np.arange(4, dtype=np.float32).reshape(2, 2, 1)
+    monkeypatch.setattr(numpy_io, "get_pattern", lambda pattern, budget=None: panel)
+    tracemalloc.start()
+    try:
+        draw_pattern_fill(viewport, psd, desc)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    assert peak <= paint._sample_peak_bytes(panel, height, width)
+
+
+@pytest.mark.parametrize("viewport", [(0, 0, 0, 10**8), (0, 0, 10**8, 0)])
+def test_a_viewport_with_one_empty_axis_allocates_nothing_along_the_other(
+    viewport: tuple[int, int, int, int],
+) -> None:
+    psd, desc, _ = _pattern()
+    tracemalloc.start()
+    try:
+        color, _ = draw_pattern_fill(viewport, psd, desc)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert color is not None and color.size == 0
+    assert color.shape == (viewport[3], viewport[2], color.shape[2])
+    assert peak < 1_000_000

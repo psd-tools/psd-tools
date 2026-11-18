@@ -346,6 +346,7 @@ def _sample_peak_bytes(panel: np.ndarray, height: int, width: int) -> int:
         + 7 * pass_pixels * channels * wide  # the first pass's integral() temporaries
         + height * width * channels * 4  # the output
         + 7 * height * width * channels * wide  # the second pass's own
+        + 16 * (height + width) * wide  # the coordinates and indices along each axis
     )
 
 
@@ -410,7 +411,9 @@ def draw_pattern_fill(
         raise _UnreadableDescriptor("Pattern scale is not finite.")
     # A pattern is never drawn smaller than a pixel a tile.
     scales = [max(scale, 1.0 / size) for size in panel.shape[:2]]
-    if height > 0 and width > 0:
+    if height <= 0 or width <= 0:
+        pixels = np.zeros((max(height, 0), max(width, 0), panel.shape[2]), np.float32)
+    else:
         # The limit is on the viewport; the sampling is sized from it, not from the scale.
         check_pixel_size(
             width,
@@ -421,18 +424,20 @@ def draw_pattern_fill(
             warn=False,
             max_dimension=dimension_limit(psd.version),
         )
-    anchor_x, anchor_y = (
-        (viewport[0], viewport[1]) if anchor is None else (anchor[0], anchor[1])
-    )
-    if scale == 1.0:
-        anchor_x, anchor_y = math.floor(anchor_x + 0.5), math.floor(anchor_y + 0.5)
-    panel = panel.astype(np.float32, copy=False)
-    if panel.shape[0] * width <= height * panel.shape[1]:
-        horizontal = _sample_axis(panel, 1, viewport[0], width, anchor_x, scales[1])
-        pixels = _sample_axis(horizontal, 0, viewport[1], height, anchor_y, scales[0])
-    else:
-        vertical = _sample_axis(panel, 0, viewport[1], height, anchor_y, scales[0])
-        pixels = _sample_axis(vertical, 1, viewport[0], width, anchor_x, scales[1])
+        anchor_x, anchor_y = (
+            (viewport[0], viewport[1]) if anchor is None else (anchor[0], anchor[1])
+        )
+        if scale == 1.0:
+            anchor_x, anchor_y = math.floor(anchor_x + 0.5), math.floor(anchor_y + 0.5)
+        panel = panel.astype(np.float32, copy=False)
+        if panel.shape[0] * width <= height * panel.shape[1]:
+            horizontal = _sample_axis(panel, 1, viewport[0], width, anchor_x, scales[1])
+            pixels = _sample_axis(
+                horizontal, 0, viewport[1], height, anchor_y, scales[0]
+            )
+        else:
+            vertical = _sample_axis(panel, 0, viewport[1], height, anchor_y, scales[0])
+            pixels = _sample_axis(vertical, 1, viewport[0], width, anchor_x, scales[1])
     # Taken from the pattern's own slot layout rather than from its color mode.
     # A mode-keyed count is only ever right by coincidence -- when the mode's
     # constant happens to equal the width this pattern stored -- and
