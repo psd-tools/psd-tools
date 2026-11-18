@@ -550,9 +550,10 @@ _SPREAD_LEVELS = 16
 
 # Distance-transform pixels spread may spend on one silhouette, so the levels
 # fall with the canvas and a large layer costs no more than a small one; never
-# fewer than a lowest and a highest.
+# fewer than keeps a coverage's grown fringe within an eighth of the range
+# of a full grey dilation's.
 _SPREAD_PIXELS = 1 << 24
-_SPREAD_MIN_LEVELS = 2
+_SPREAD_MIN_LEVELS = 8
 
 
 def _shadow_offset(distance: float, angle: float) -> tuple[float, float]:
