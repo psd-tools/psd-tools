@@ -7,16 +7,18 @@ import numpy as np
 import pytest
 
 from psd_tools import PSDImage
+from psd_tools.api.layers import Layer
 from psd_tools.composite import paint
 from psd_tools.constants import Tag
 from psd_tools.psd.descriptor import Descriptor
-from psd_tools.terminology import Key
+from psd_tools.terminology import Enum, Key
 
 from ..utils import full_name
 
 pytest.importorskip("scipy")
 
 Mutation = Callable[[Descriptor], None]
+LayerMutation = Callable[[Layer], None]
 
 
 def _unknown_color_class(desc: Descriptor) -> None:
@@ -181,3 +183,84 @@ def test_a_layer_whose_fill_block_does_not_parse_draws_nothing(force: bool) -> N
     drawn = forged_layer.composite(force=force)
     assert drawn is not None
     assert not np.asarray(drawn.getchannel("A")).any()
+
+
+def _corrupt_fill(tag: Tag, mutate: Mutation) -> LayerMutation:
+    return lambda layer: mutate(layer._record.tagged_blocks.get_data(tag))
+
+
+def _unparseable_fill(tag: Tag) -> LayerMutation:
+    def edit(layer: Layer) -> None:
+        layer._record.tagged_blocks[tag].data = b"\x00\x01junk"
+
+    return edit
+
+
+def _missing_pattern_id(desc: Descriptor) -> None:
+    del desc[Enum.Pattern][Key.ID]
+
+
+STORED_FALLBACK = [
+    (
+        "advanced-blending.psd",
+        "Rectangle 1",
+        _corrupt_fill(Tag.SOLID_COLOR_SHEET_SETTING, _unknown_color_class),
+    ),
+    (
+        "advanced-blending.psd",
+        "Rectangle 1",
+        _unparseable_fill(Tag.SOLID_COLOR_SHEET_SETTING),
+    ),
+    (
+        "stroke.psd",
+        "Rounded Rectangle 1",
+        _corrupt_fill(Tag.VECTOR_STROKE_CONTENT_DATA, _unknown_color_class),
+    ),
+    (
+        "stroke.psd",
+        "Shape 1",
+        _corrupt_fill(Tag.VECTOR_STROKE_CONTENT_DATA, _missing_pattern_id),
+    ),
+    (
+        "stroke.psd",
+        "Rectangle 1",
+        _unparseable_fill(Tag.VECTOR_STROKE_CONTENT_DATA),
+    ),
+]
+
+
+@pytest.mark.parametrize(("filename", "layer_name", "edit"), STORED_FALLBACK)
+def test_a_stored_pixel_fallback_matches_unforced_composite(
+    filename: str, layer_name: str, edit: LayerMutation
+) -> None:
+    psd = PSDImage.open(full_name(filename))
+    layer = next(x for x in psd.descendants() if x.name == layer_name)
+    assert layer.has_pixels()
+    edit(layer)
+    forged = _reopened(psd)
+    forged_layer = next(x for x in forged.descendants() if x.name == layer_name)
+    stored = forged_layer.composite(force=False)
+    forced = forged_layer.composite(force=True)
+    assert stored is not None and forced is not None
+    assert np.array_equal(np.asarray(forced), np.asarray(stored))
+
+
+def test_a_stored_pixel_fallback_casts_the_stored_drop_shadow() -> None:
+    psd = PSDImage.open(full_name("masks.psb"))
+    layer = next(x for x in psd.descendants() if x.name == "Rounded Rectangle 3")
+    assert layer.has_pixels()
+    _unknown_color_class(
+        layer._record.tagged_blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)
+    )
+    forged = _reopened(psd)
+    forged_layer = next(
+        x for x in forged.descendants() if x.name == "Rounded Rectangle 3"
+    )
+    stored = forged.composite(
+        ignore_preview=True, layer_filter=lambda x: x is forged_layer, force=False
+    )
+    forced = forged.composite(
+        ignore_preview=True, layer_filter=lambda x: x is forged_layer, force=True
+    )
+    assert stored is not None and forced is not None
+    assert np.array_equal(np.asarray(forced), np.asarray(stored))

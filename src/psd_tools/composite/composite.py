@@ -1450,6 +1450,7 @@ class Compositor:
         self._layer_filter = layer_filter
         self._force = force
         self._mask_repeats: dict[int, bool] = {}
+        self._stored_fallback: set[int] = set()
         # How a one-channel array becomes this compositor's width. Carried
         # rather than derived because the four sites that need it below are
         # inside this class, which holds no document handle (#722, #749).
@@ -1722,7 +1723,7 @@ class Compositor:
 
         # A layer drawn from a fill, or force-redrawn from its vector mask, has
         # no source shape worth tracing -- the stroke follows the mask instead.
-        traces_mask = (self._force and layer.has_vector_mask()) or (
+        traces_mask = (self._effective_force(layer) and layer.has_vector_mask()) or (
             not layer.has_pixels() and utils.has_fill(layer)
         )
         traced: float | np.ndarray = source.shape
@@ -2122,6 +2123,12 @@ class Compositor:
 
         return color, shape, alpha, isolate_adjustments
 
+    def _effective_force(self, layer: Layer) -> bool:
+        return self._force and id(layer) not in self._stored_fallback
+
+    def _redraws(self, layer: Layer) -> bool:
+        return self._effective_force(layer) or not layer.has_pixels()
+
     def _read_object(self, layer: Layer) -> tuple[np.ndarray | None, np.ndarray | None]:
         """The layer's own color and coverage, on ``layer.bbox`` and unpasted.
 
@@ -2136,7 +2143,7 @@ class Compositor:
         if color is not None:
             numpy_io.check_shape_read(layer, numpy_io._backing_bytes(color))
         shape = layer.numpy("shape")
-        if (self._force or not layer.has_pixels()) and utils.has_fill(layer):
+        if self._redraws(layer) and utils.has_fill(layer):
             fill_color: np.ndarray | None = None
             fill_shape: np.ndarray | None = None
             try:
@@ -2146,10 +2153,14 @@ class Compositor:
                 logger.debug("Cannot read the fill of %s: %s", layer, error)
                 unreadable = True
             if unreadable:
-                # The stored pixels stand in; without a stored color the layer
-                # covers nothing, whatever shape it carries.
+                # The stored pixels stand in, so downstream mask and stroke
+                # steps treat the layer as stored rather than redrawn (#1059);
+                # without a stored color the layer covers nothing, whatever
+                # shape it carries.
                 if color is None:
                     shape = None
+                else:
+                    self._stored_fallback.add(id(layer))
             else:
                 color = fill_color
                 shape = fill_shape
@@ -2213,7 +2224,7 @@ class Compositor:
         A layer read from stored pixels has its stroke in them already.
         """
         return bool(
-            (self._force or not layer.has_pixels())
+            self._redraws(layer)
             and layer.has_vector_mask()
             and layer.stroke is not None
             and layer.stroke.enabled
@@ -2293,7 +2304,7 @@ class Compositor:
                 shape_s = bounded
             return color, shape, alpha, (shape_s * uncovered, alpha_s * uncovered)
 
-        if fill_off and (self._force or not layer.has_pixels()):
+        if fill_off and self._redraws(layer):
             shape, alpha = shape * 0.0, alpha * 0.0
         return color, shape, alpha, None
 
@@ -2340,8 +2351,7 @@ class Compositor:
         if (
             mask is None
             or not isinstance(layer, (ShapeLayer, FillLayer))
-            or self._force
-            or not layer.has_pixels()
+            or self._redraws(layer)
             or mask.real_flags is not None
             or mask.bbox != layer.bbox
         ):
@@ -2392,7 +2402,7 @@ class Compositor:
             and not self._mask_repeats_shape(layer)
         ):
             # TODO: When force, ignore real mask.
-            mask = layer.numpy("mask", real_mask=not self._force)
+            mask = layer.numpy("mask", real_mask=not self._effective_force(layer))
             if mask is not None:
                 shape = paste(
                     viewport,
@@ -2415,8 +2425,7 @@ class Compositor:
             and layer.vector_mask is not None
             and not layer.vector_mask.disabled
             and (
-                self._force
-                or not layer.has_pixels()
+                self._redraws(layer)
                 or (
                     not utils.has_fill(layer)
                     and layer.mask is not None
@@ -2718,16 +2727,14 @@ class Compositor:
         viewport. The group's contents are composited over nothing, once per
         box and pass, as :py:meth:`_get_group_shape` does for a stroke.
         """
-        mask = self._get_mask(layer, viewport)
         if layer.is_group():
             own = self._get_group_shape(layer, viewport, alpha=True)
         else:
             own = self._get_object_shape(layer, viewport)
             # A redrawn shape with its fill off has no coverage of its own.
-            if utils.is_fill_disabled(layer) and (
-                self._force or not layer.has_pixels()
-            ):
+            if utils.is_fill_disabled(layer) and self._redraws(layer):
                 own = own * 0.0
+        mask = self._get_mask(layer, viewport)
         return utils.clip(own * mask)
 
     def _apply_drop_shadows(self, layer: Layer) -> None:
