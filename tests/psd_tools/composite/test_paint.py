@@ -1188,7 +1188,7 @@ def test_cmyk_stroke_on_an_rgb_document_is_the_ink_it_asks_for() -> None:
 
 @pytest.mark.parametrize("name", ["Polygon 1", "Shape 1"])
 def test_create_fill_draws_vector_stroke_content_pattern(name: str) -> None:
-    """A shape layer's ``vscg`` pattern fill is drawn, not dropped (#1060)."""
+    """A shape layer's ``vscg`` pattern fill is drawn, not dropped."""  # #1060
     psd = PSDImage.open(full_name("stroke.psd"))
     layer = next(layer for layer in psd.descendants() if layer.name == name)
     content = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
