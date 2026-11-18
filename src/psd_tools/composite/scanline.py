@@ -53,6 +53,10 @@ _FLATNESS = 0.002
 # points sit far enough out to ask for more than its visible arc could use.
 _MAX_STEPS = 1000
 
+# Coverage at or below this is float cancellation in the prefix sum, not area;
+# a distance field reads any positive value as a pixel on the path's edge.
+_RESIDUE = 1e-9
+
 
 def _cuts(
     c0: np.ndarray, c1: np.ndarray, lo: float, hi: float
@@ -200,6 +204,7 @@ def fill_coverage(polylines: list, width: int, height: int) -> np.ndarray:
         # docstring.
         np.mod(rows, 2.0, out=rows)
         np.subtract(1.0, np.abs(rows - 1.0), out=rows)
+        rows[rows <= _RESIDUE] = 0.0
         coverage[top:bottom] = rows[:, 1 : width + 1]
     return coverage
 
