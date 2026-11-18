@@ -260,17 +260,45 @@ def create_fill(
     if (desc := blocks.get_data(Tag.SOLID_COLOR_SHEET_SETTING)) is not None:
         return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
     if (desc := blocks.get_data(Tag.PATTERN_FILL_SETTING)) is not None:
-        return draw_pattern_fill(viewport, layer._psd, desc)
+        return draw_pattern_fill(
+            viewport, layer._psd, desc, _pattern_anchor(layer, desc)
+        )
     if (desc := blocks.get_data(Tag.GRADIENT_FILL_SETTING)) is not None:
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if (desc := blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)) is not None:
         if Key.Color in desc:
             return draw_solid_color_fill(viewport, layer._psd.color_mode, desc)
         elif Enum.Pattern in desc:
-            return draw_pattern_fill(viewport, layer._psd, desc)
+            return draw_pattern_fill(
+                viewport, layer._psd, desc, _pattern_anchor(layer, desc)
+            )
         elif Key.Gradient in desc:
             return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
+
+
+def _pattern_anchor(
+    layer: "Layer", desc: Descriptor
+) -> tuple[int, int, int, int] | None:
+    """Where the tiling starts, as a zero-size box; ``None`` leaves it to the viewport."""
+    try:
+        if bool(desc.get(b"Algn", True)):
+            reference = layer.tagged_blocks.get_data(Tag.REFERENCE_POINT)
+            if reference is None:
+                return None
+            x, y = float(reference[0]), float(reference[1])
+        else:
+            x = y = 0.0
+        phase = desc.get(b"phase")
+        if isinstance(phase, Descriptor):
+            x += float(phase.get(b"Hrzn", 0.0))
+            y += float(phase.get(b"Vrtc", 0.0))
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not (math.isfinite(x) and math.isfinite(y)):
+        return None
+    x, y = math.floor(x + 0.5), math.floor(y + 0.5)
+    return x, y, x, y
 
 
 def _resize_panel(panel: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
