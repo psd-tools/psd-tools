@@ -1184,3 +1184,19 @@ def test_cmyk_stroke_on_an_rgb_document_is_the_ink_it_asks_for() -> None:
     )
     assert color[0, 0] == pytest.approx(cmyk_to_rgb(*ink), abs=1e-6)
     assert (255 * color[0, 0]).astype(np.uint8).tolist() == [8, 9, 9]
+
+
+@pytest.mark.parametrize("name", ["Polygon 1", "Shape 1"])
+def test_create_fill_draws_vector_stroke_content_pattern(name: str) -> None:
+    """A shape layer's ``vscg`` pattern fill is drawn, not dropped."""  # #1060
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = next(layer for layer in psd.descendants() if layer.name == name)
+    content = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
+    assert Enum.Pattern in content
+
+    color, _shape = paint.create_fill(layer, layer.bbox)
+    expected, _ = paint.draw_pattern_fill(layer.bbox, psd, content)
+    assert color is not None
+    assert color.shape == (layer.height, layer.width, 3)
+    np.testing.assert_array_equal(color, expected)
+    assert color.min() < 1.0

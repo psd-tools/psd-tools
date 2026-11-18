@@ -4,6 +4,10 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [fix] A shape layer's pattern fill is drawn when compositing without the stored
+  pixels (``force=True``, or no stored pixels); it was painted as an opaque fill.
+  The pattern's phase is not modelled, as for pattern fill layers (#1060)
+
 - [api] ``Layer.move_to_group()``, ``Group.group_layers()``, ``Layer.delete_layer()`` and
   ``Layer.clipping_layer`` emit ``DeprecationWarning``; use ``move_to()``,
   ``create_group()``, ``parent.remove()`` and ``clipping``. ``clipping_layer`` warned
