@@ -54,7 +54,7 @@ Now list the commits since the last release by running one of these commands:
 
 You must run this command and review the output before proceeding to Step 0 or Step 2.
 
-## Step 1c — Reconcile the release milestone
+## Step 1b — Reconcile the release milestone
 
 Release scope is also tracked in a milestone, titled bare without the `v` prefix
 (`1.20.0`, not `v1.20.0`). It is maintained by hand during triage, so it and the changelog
@@ -189,7 +189,7 @@ Run `gh pr create` with `--title "Release vVERSION"` and a `--body` containing:
 - A `### Release checklist` section with these items:
   - `[ ] Changelog entry reviewed and accurate`
   - `[ ] Version follows PEP 440`
-  - `[ ] Milestone reconciled both ways (Step 1c)`
+  - `[ ] Milestone reconciled both ways (Step 1b)`
 - A closing note: "After this PR is merged, the `auto-tag` workflow will tag the merge commit
   as `vVERSION` and the `release` workflow will build wheels and publish to PyPI automatically."
 
