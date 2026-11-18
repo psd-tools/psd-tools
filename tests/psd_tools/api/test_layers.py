@@ -71,6 +71,11 @@ def group() -> Group:
     return PSDImage.open(full_name("layers/group.psd"))[0]  # type: ignore[return-value]
 
 
+def _local(layer: Any, dest: Any) -> Any:
+    """Copy ``layer`` to the root of ``dest``'s document."""
+    return layer.copy_to(dest._psd)
+
+
 ALL_FIXTURES = [
     "pixel_layer",
     "shape_layer",
@@ -413,6 +418,9 @@ def test_group_layers(
     adjustment_layer: AdjustmentLayer,
 ) -> None:
     psdimage = pixel_layer._psd
+    smartobject_layer = _local(smartobject_layer, psdimage)
+    fill_layer = _local(fill_layer, psdimage)
+    adjustment_layer = _local(adjustment_layer, psdimage)
     test_group = Group.group_layers(
         parent=psdimage,  # type: ignore[arg-type]
         layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
@@ -684,6 +692,10 @@ def test_layer_move_up(
     fill_layer: AdjustmentLayer,
     adjustment_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
+    adjustment_layer = _local(adjustment_layer, group)
     group.extend([pixel_layer])
     test_group = Group.group_layers(
         parent=group,
@@ -714,6 +726,10 @@ def test_layer_move_down(
     fill_layer: AdjustmentLayer,
     adjustment_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
+    adjustment_layer = _local(adjustment_layer, group)
     group.extend([pixel_layer])
     test_group = Group.group_layers(
         parent=group,
@@ -791,6 +807,7 @@ def test_delete_layer_attached() -> None:
 
 
 def test_group_append(group: Group, pixel_layer: PixelLayer) -> None:
+    pixel_layer = _local(pixel_layer, group)
     group.append(pixel_layer)
     assert pixel_layer in group
     assert pixel_layer._parent is group
@@ -804,6 +821,10 @@ def test_group_extend(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     for layer in [pixel_layer, type_layer, smartobject_layer, fill_layer]:
@@ -833,6 +854,7 @@ def test_group_extend_adds_a_repeated_layer_once(
     group: Group, pixel_layer: PixelLayer
 ) -> None:
     """A layer named twice in one call lands once, and stays removable."""
+    pixel_layer = _local(pixel_layer, group)
     group.extend([pixel_layer, pixel_layer])
 
     assert len(group) == 1
@@ -877,6 +899,8 @@ def test_group_extend_keeps_the_last_mention_of_a_repeated_layer(
     group: Group, pixel_layer: PixelLayer, type_layer: TypeLayer
 ) -> None:
     """De-duplication leaves a layer where a loop of ``append()`` would."""
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
     group.extend([pixel_layer, type_layer, pixel_layer])
     assert list(group) == [type_layer, pixel_layer]
 
@@ -884,8 +908,7 @@ def test_group_extend_keeps_the_last_mention_of_a_repeated_layer(
     # mention wins there because appending a layer the group already holds
     # moves it to the end. Keeping the *first* mention instead -- what
     # ``dict.fromkeys()`` gives -- would order these two differently.
-    reference = PSDImage.open(full_name("layers/group.psd"))[0]
-    assert isinstance(reference, Group)
+    reference = group._psd.create_group(name="Reference")
     for layer in [pixel_layer, type_layer, pixel_layer]:
         reference.append(layer)
 
@@ -897,6 +920,8 @@ def test_group_extend_accepts_a_one_shot_iterable(
     group: Group, pixel_layer: PixelLayer, type_layer: TypeLayer
 ) -> None:
     """The checks must not drain a generator before anything is added."""
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
     group.extend(layer for layer in [pixel_layer, type_layer])
 
     assert list(group) == [pixel_layer, type_layer]
@@ -975,6 +1000,10 @@ def test_group_insert(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.append(pixel_layer)
 
     group.insert(0, fill_layer)
@@ -999,6 +1028,10 @@ def test_group_setitem(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.extend([pixel_layer, type_layer])
 
     group[0] = fill_layer
@@ -1057,8 +1090,10 @@ def test_psd_image_setitem_round_trip(tmp_path: Any) -> None:
     psdimage = PSDImage.new(mode="RGB", size=(30, 30))
     psdimage.create_pixel_layer(Image.new("RGB", (30, 30), (255, 0, 0)), name="Red")
     psdimage.create_pixel_layer(Image.new("RGB", (30, 30), (0, 255, 0)), name="Green")
-    replacement = PSDImage.new(mode="RGB", size=(30, 30)).create_pixel_layer(
-        Image.new("RGB", (30, 30), (0, 0, 255)), name="Blue"
+    replacement = (
+        PSDImage.new(mode="RGB", size=(30, 30))
+        .create_pixel_layer(Image.new("RGB", (30, 30), (0, 0, 255)), name="Blue")
+        .copy_to(psdimage)
     )
 
     psdimage[0] = replacement
@@ -1077,6 +1112,9 @@ def test_group_delitem(
     type_layer: TypeLayer,
     smartobject_layer: SmartObjectLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
     group.extend([pixel_layer, type_layer, smartobject_layer])
 
     del group[0]
@@ -1099,6 +1137,10 @@ def test_group_remove(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.extend([pixel_layer, type_layer, smartobject_layer])
 
     group.remove(pixel_layer)
@@ -1121,6 +1163,10 @@ def test_group_pop(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     assert group.pop() is fill_layer
@@ -1145,6 +1191,10 @@ def test_group_clear(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
     assert len(group) == 4
 
@@ -1159,6 +1209,10 @@ def test_group_index(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     with pytest.raises(ValueError, match=r".* not in list"):
         group.index(pixel_layer)
 
@@ -1182,6 +1236,10 @@ def test_group_count(
     smartobject_layer: SmartObjectLayer,
     fill_layer: AdjustmentLayer,
 ) -> None:
+    pixel_layer = _local(pixel_layer, group)
+    type_layer = _local(type_layer, group)
+    smartobject_layer = _local(smartobject_layer, group)
+    fill_layer = _local(fill_layer, group)
     group.extend([pixel_layer, type_layer, smartobject_layer, fill_layer])
 
     assert group.count(pixel_layer) == 1
@@ -1246,78 +1304,26 @@ def test_lock_layer(pixel_layer: PixelLayer) -> None:
     assert locks.complete
 
 
-def test_group_move_between_psdimages() -> None:
+def test_group_copy_between_psdimages() -> None:
     psdimage = PSDImage.new(mode="RGB", size=(100, 100))
     layer = psdimage.create_pixel_layer(
         Image.new("RGB", (50, 50), (255, 0, 0)),
         name="Red Layer",
     )
-    assert layer._psd is psdimage
-    assert len(psdimage) == 1
     psdimage2 = PSDImage.new(mode="RGB", size=(200, 200))
     group = psdimage2.create_group(
         [],
         name="Empty Group",
     )
-    assert len(psdimage2) == 1
-    assert len(group) == 0
 
-    group.append(layer)
-    assert layer._psd is psdimage2
-    assert len(psdimage) == 0
+    copy = layer.copy_to(group)
+
+    assert layer._psd is psdimage
+    assert len(psdimage) == 1
+    assert copy._psd is psdimage2
     assert len(psdimage2) == 1
     assert len(group) == 1
-    assert layer.parent is group
-
-
-@pytest.mark.parametrize("move", ["append", "extend", "insert"])
-def test_cross_document_move_rebuilds_the_donor_record_list(
-    tmp_path: Path, move: str
-) -> None:
-    """A layer moved out of a document must leave that document's file (#841).
-
-    Rebuilding the *receiving* document's flat record list alone leaves the
-    donor writing a layer it no longer holds, since :py:meth:`PSDImage.save`
-    writes the stored list without rebuilding it -- and the layer lands in
-    *both* files. The in-memory tree is right either way, so only a save and
-    reopen of the donor sees this.
-
-    All three entry points are moved separately because they reach the rebuild
-    by different routes: ``append()`` delegates to ``extend()``, while
-    ``insert()`` carries its own donor bookkeeping. The donor is a shipped
-    file rather than a ``PSDImage.new()`` one so that it starts clean --
-    ``create_pixel_layer()`` would have marked it updated already, and the
-    dirty flag below would then hold whether or not the move set it.
-    """
-    donor = PSDImage.open(full_name("clipping-mask.psd"))
-    dest = PSDImage.new(mode="RGB", size=donor.size)
-    layer = donor[0]
-    assert layer.name == "Background"
-    assert not donor.is_updated()
-
-    if move == "append":
-        dest.append(layer)
-    elif move == "extend":
-        dest.extend([layer])
-    else:
-        dest.insert(0, layer)
-
-    assert [child.name for child in donor] == ["Group 2"]
-    # The defect itself: the flat record list the donor will write.
-    layer_info = donor._record.layer_and_mask_information.layer_info
-    assert layer_info is not None
-    assert not any(record.name == "Background" for record in layer_info.layer_records)
-    # Rebuilding also marks the donor updated, which is what makes its
-    # ``save()`` regenerate a preview that no longer shows the layer.
-    assert donor.is_updated()
-
-    donor_path = tmp_path / "donor.psd"
-    donor.save(donor_path)
-    assert [child.name for child in PSDImage.open(donor_path)] == ["Group 2"]
-
-    dest_path = tmp_path / "dest.psd"
-    dest.save(dest_path)
-    assert [child.name for child in PSDImage.open(dest_path)] == ["Background"]
+    assert copy.parent is group
 
 
 @pytest.mark.parametrize(
@@ -1380,37 +1386,28 @@ def test_a_structural_edit_to_a_deep_document_survives_a_save(
     assert authoritative.layer_count == len(authoritative.layer_records)
 
 
-def test_a_cross_document_move_between_deep_documents_survives_a_save(
-    tmp_path: Path,
-) -> None:
-    """A layer moved between two 16-bit documents lands in exactly one (#861).
+def test_a_copy_between_deep_documents_survives_a_save(tmp_path: Path) -> None:
+    """A layer copied between two 16-bit documents lands in the receiver only.
 
-    ``extend()`` rebuilds the donor as well as the receiver (#841); at 16 bits
-    a rebuild that lands in the section the reader ignores leaves the layer in
-    the donor's file and never gets it to the receiver's -- a move that loses
-    the layer from both sides at once (#860).
-
-    The receiver is a shipped PSB rather than a ``PSDImage.new()`` document so
-    that it carries an ``Lr16`` block of its own; a new one has none, and its
-    half of the move would then exercise the 8-bit path instead.
-    The moved layer is renamed first because both fixtures ship the same three
-    layer names.
+    The receiver is a shipped PSB so that it carries an ``Lr16`` block of its
+    own; a new document has none and would exercise the 8-bit path.
     """
-    donor = PSDImage.open(full_name("16bit5x5.psd"))
+    source = PSDImage.open(full_name("16bit5x5.psd"))
     dest = PSDImage.open(full_name("16bit5x5.psb"))
-    layer = donor[0]
-    layer.name = "Moved"
+    names = [child.name for child in source]
+    layer = source[0]
+    layer.name = "Copied"
 
-    dest.append(layer)
+    layer.copy_to(dest)
 
-    assert [child.name for child in donor] == ["Background copy", "Background copy 2"]
-    assert [child.name for child in dest][-1] == "Moved"
+    assert [child.name for child in source] == ["Copied", *names[1:]]
+    assert [child.name for child in dest][-1] == "Copied"
 
-    donor_path = tmp_path / "donor.psd"
-    donor.save(donor_path)
-    assert [child.name for child in PSDImage.open(donor_path)] == [
-        "Background copy",
-        "Background copy 2",
+    source_path = tmp_path / "source.psd"
+    source.save(source_path)
+    assert [child.name for child in PSDImage.open(source_path)] == [
+        "Copied",
+        *names[1:],
     ]
 
     dest_path = tmp_path / "dest.psb"
@@ -1419,7 +1416,7 @@ def test_a_cross_document_move_between_deep_documents_survives_a_save(
         "Background",
         "Background copy",
         "Background copy 2",
-        "Moved",
+        "Copied",
     ]
 
 
@@ -1506,7 +1503,7 @@ def test_artboard_background_chroma_is_offset_encoded_on_a_lab_document(
 # box differs from the armed one. That ordering matters: a test written the way
 # the issue's repro is -- create a group, add to it, then read -- cannot fail on
 # Python >= 3.12, because a fresh group only gets ``(0, 0, 0, 0)`` cached when
-# ``_update_children()``'s ``isinstance(layer, GroupMixin)`` executes the
+# ``_check_insertion()``'s ``isinstance(layer, GroupMixin)`` executes the
 # ``bbox`` descriptor, and CPython 3.12 made ``isinstance()`` against a
 # ``runtime_checkable`` protocol use ``inspect.getattr_static()`` instead of
 # ``hasattr()``. Read-then-mutate has no such dependency and fails on every
@@ -1720,14 +1717,11 @@ def test_reparenting_a_group_invalidates_the_subtree_it_carries(how: str) -> Non
 
 
 @pytest.mark.parametrize("nested", [False, True])
-def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> None:
+def test_copying_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> None:
     """A vector-mask-only shape's box is scaled by its *document's* size.
 
-    ``ShapeLayer.bbox`` multiplies the mask's normalized bounds by
-    ``self._psd.width`` and ``height``, so a cross-document move repoints
-    ``_psd`` at a canvas of a different size and the cached box no longer
-    describes anything. Nested inside a moved group, it is reached by the same
-    subtree walk that reaches the groups.
+    The source's shape keeps its box; the copy, also when nested inside a
+    copied group, is scaled by the destination canvas.
     """
     source = PSDImage.open(full_name("vector-mask.psd"))
     target = PSDImage.open(full_name("note.psd"))
@@ -1740,11 +1734,14 @@ def test_moving_a_shape_to_another_document_rescales_its_bbox(nested: bool) -> N
     if nested:
         moved = source.create_group([shape], name="G")
 
-    assert shape.bbox == (12, 42, 53, 83)  # armed against the 100x150 canvas
+    assert shape.bbox == (12, 42, 53, 83)
 
-    target.append(moved)
+    copy = moved.copy_to(target)
+    if nested:
+        copy = copy[0]
 
-    assert shape.bbox == (35, 85, 159, 166)
+    assert copy.bbox == (35, 85, 159, 166)
+    assert shape.bbox == (12, 42, 53, 83)
 
 
 # ---------------------------------------------------------------------------
@@ -2154,23 +2151,6 @@ def test_parent_creators_type_check() -> None:
     parent = group[0].parent
     assert parent is not None
     assert parent.create_group(name="Via parent").parent is group
-
-
-def test_a_document_that_received_a_layer_can_donate_one() -> None:
-    """A document that received a pattern-using layer can donate one (#862)."""
-    a = PSDImage.open(full_name("layers/pattern-fill.psd"))
-    b = PSDImage.open(full_name("2layers.psd"))
-    c = PSDImage.open(full_name("1layer.psd"))
-    assert b.tagged_blocks is None or Tag.PATTERNS1 not in b.tagged_blocks
-
-    b.append(a[0])
-    layer = b[-1]
-    c.append(layer)
-
-    assert layer._psd is c
-    assert layer in c
-    assert c.tagged_blocks is not None
-    assert Tag.PATTERNS1 in c.tagged_blocks
 
 
 def _painted_bbox(image: Image.Image, origin: tuple[int, int]) -> tuple[int, ...]:

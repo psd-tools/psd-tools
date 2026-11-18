@@ -206,12 +206,15 @@ def test_create_group_does_not_truth_test_its_iterable() -> None:
 
 
 def test_update_record(fixture: PSDImage) -> None:
-    pixel_layer = PSDImage.open(full_name("layers/pixel-layer.psd"))[0]
-    fill_layer = PSDImage.open(full_name("layers/solid-color-fill.psd"))[0]
-    shape_layer = PSDImage.open(full_name("layers/shape-layer.psd"))[0]
-    smart_layer = PSDImage.open(full_name("layers/smartobject-layer.psd"))[0]
-    type_layer = PSDImage.open(full_name("layers/type-layer.psd"))[0]
-    group_layer = PSDImage.open(full_name("layers/group.psd"))[0]
+    def local(name: str) -> Any:
+        return PSDImage.open(full_name(name))[0].copy_to(fixture)
+
+    pixel_layer = local("layers/pixel-layer.psd")
+    fill_layer = local("layers/solid-color-fill.psd")
+    shape_layer = local("layers/shape-layer.psd")
+    smart_layer = local("layers/smartobject-layer.psd")
+    type_layer = local("layers/type-layer.psd")
+    group_layer = local("layers/group.psd")
     assert isinstance(group_layer, Group)
 
     group_layer.extend([pixel_layer, fill_layer, shape_layer, smart_layer, type_layer])

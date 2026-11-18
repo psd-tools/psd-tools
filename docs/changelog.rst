@@ -4,6 +4,11 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [api] **Backwards-incompatible.** Adding a layer from another document with
+  ``append()``, ``extend()``, ``insert()``, item assignment, ``create_group()``,
+  ``move_to_group()`` or ``group_layers()`` raises ``ValueError`` instead of moving
+  it, as announced in 1.25.0. Use ``Layer.copy_to()`` (#1005, #1001)
+
 - [fix] ``composite(force=True)`` no longer widens the outside stroke of a shape layer
   by a spurious column of pixels beside the path. Affects shape layers with a stroke
   effect whose path edge falls on a pixel boundary (#953)
