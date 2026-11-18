@@ -220,7 +220,10 @@ def test_spread_grows_a_faint_feather_at_its_own_levels() -> None:
     assert float(grown[28, 28, 0]) == pytest.approx(0.05, abs=0.05 / 8)
 
 
-def test_a_pixel_elsewhere_does_not_drop_a_plateau_s_spread() -> None:
+@pytest.mark.parametrize("pixels", [1 << 24, 1])
+def test_a_pixel_elsewhere_does_not_drop_a_plateau_s_spread(
+    monkeypatch: pytest.MonkeyPatch, pixels: int
+) -> None:
     """The levels are spaced over coverage, not over the coverages present.
 
     A plateau at 0.99 beside a faint feather of 29 coverages: picking every
@@ -230,6 +233,7 @@ def test_a_pixel_elsewhere_does_not_drop_a_plateau_s_spread() -> None:
     review). Spaced over coverage, a level is never more than a fifteenth of
     the range below what it grows.
     """
+    monkeypatch.setattr(effects, "_SPREAD_PIXELS", pixels)
     shape = np.zeros((41, 81, 1), dtype=np.float32)
     shape[15:26, 15:26] = 0.99
     shape[15:26, 45:74, 0] = np.linspace(0.001, 0.029, 29)
@@ -242,7 +246,9 @@ def test_a_pixel_elsewhere_does_not_drop_a_plateau_s_spread() -> None:
     )
     # Three pixels out from the plateau's left edge.
     for grown in (alone, beside):
-        assert float(grown[20, 12, 0]) == pytest.approx(0.99, abs=1.0 / 15)
+        assert float(grown[20, 12, 0]) == pytest.approx(
+            0.99, abs=1.0 / (effects._SPREAD_MIN_LEVELS - 1)
+        )
 
 
 # -- Compositing ------------------------------------------------------------ #
@@ -978,3 +984,28 @@ def test_a_grid_cell_renders_to_photoshops_preview(filename: str, name: str) -> 
     without = float(_mse(reference[region], unshadowed[region]))
     assert without > _MEASURABLE, "the cell has no shadow"
     assert float(_mse(reference[region], shadowed[region])) * _IMPROVEMENT <= without
+
+
+def test_spread_runs_fewer_transforms_on_a_large_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The levels shrink with the canvas, to a lowest and a highest."""
+    shape = np.zeros((41, 41), dtype=np.float32)
+    shape[10:31, 10:31] = np.linspace(0.1, 1.0, 441).reshape(21, 21)
+    ndi = pytest.importorskip("scipy.ndimage")
+    calls: list[int] = []
+    real = ndi.distance_transform_edt
+
+    def counted(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ndi, "distance_transform_edt", counted)
+    effects._spread(shape, 4.0)
+    full = len(calls)
+    calls.clear()
+    monkeypatch.setattr(effects, "_SPREAD_PIXELS", 1)
+    grown = effects._spread(shape, 4.0)
+    assert full > len(calls) == effects._SPREAD_MIN_LEVELS
+    assert (grown >= shape).all()
+    assert (grown > shape).any()

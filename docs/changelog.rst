@@ -4,6 +4,10 @@ Changelog
 1.27.0 (unreleased)
 -------------------
 
+- [fix] Drop shadow spread on a large feathered or masked layer no longer scales
+  its render time with the canvas; it grows at fewer coverage levels as the
+  canvas gets larger (#1073)
+
 - [fix] A shape layer's pattern fill is drawn when compositing without the stored
   pixels (``force=True``, or no stored pixels); it was painted as an opaque fill
   (#1060)
