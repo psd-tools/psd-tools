@@ -6,10 +6,9 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
-from PIL import Image
 
 from psd_tools.api import numpy_io
-from psd_tools.api.utils import check_growth, check_pixel_size, dimension_limit
+from psd_tools.api.utils import check_pixel_size, dimension_limit
 from psd_tools.color_convert import (
     cmyk_to_rgb,
     gray_to_cmyk,
@@ -35,10 +34,6 @@ logger = logging.getLogger(__name__)
 class _UnreadableDescriptor(ValueError):
     """A fill descriptor that cannot be read, as opposed to one over budget."""
 
-
-# How many times its own area a pattern panel may be scaled up to, past the
-# floor check_growth() allows.
-_SCALE_GROWTH = 100
 
 # Per pixel, what a gradient fill peaks at: its coordinate grids and ramp
 # planes outweigh the float32 colour it returns.
@@ -279,7 +274,7 @@ def create_fill(
 
 def _pattern_anchor(
     layer: "Layer", desc: Descriptor
-) -> tuple[int, int, int, int] | None:
+) -> tuple[float, float, float, float] | None:
     """Where the tiling starts, as a zero-size box; ``None`` leaves it to the viewport."""
     try:
         if bool(desc.get(b"Algn", True)):
@@ -297,36 +292,60 @@ def _pattern_anchor(
         return None
     if not (math.isfinite(x) and math.isfinite(y)):
         return None
-    x, y = math.floor(x + 0.5), math.floor(y + 0.5)
     return x, y, x, y
 
 
-def _resize_panel(panel: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
-    """Bilinear-resize a float panel, one float32 plane at a time."""
-    height, width = shape
-    out = np.empty((height, width, panel.shape[2]), dtype=np.float32)
-    for channel in range(panel.shape[2]):
-        source = Image.fromarray(
-            np.ascontiguousarray(panel[:, :, channel], dtype=np.float32), "F"
-        )
-        out[:, :, channel] = np.asarray(
-            source.resize((width, height), Image.Resampling.BILINEAR)
-        )
-        del source
-    return out
+def _sample_axis(
+    src: np.ndarray, axis: int, origin: int, count: int, anchor: float, scale: float
+) -> np.ndarray:
+    """
+    Sample ``src`` tiled along ``axis`` at ``scale``, for ``count`` pixels from ``origin``.
+
+    The tiling starts at ``anchor``. Photoshop reads a pattern bilinearly above
+    half size and averages the source span a pixel covers at or below it.
+    """
+    size = src.shape[axis]
+    offset = origin - math.fmod(float(anchor), size * scale)
+    at = np.mod((np.arange(count) + offset) / scale, size)
+    shape = [1] * src.ndim
+    shape[axis] = -1
+    if scale > 0.5:
+        first = np.floor(at)
+        weight = (at - first).astype(np.float32).reshape(shape)
+        index = first.astype(np.intp)
+        low = np.take(src, index % size, axis=axis)
+        high = np.take(src, (index + 1) % size, axis=axis)
+        return low + (high - low) * weight
+
+    cumulative = np.cumsum(src, axis=axis, dtype=np.float64)
+    cumulative = np.concatenate(
+        [np.zeros_like(np.take(cumulative, [0], axis=axis)), cumulative], axis=axis
+    )
+    total = np.take(cumulative, [size], axis=axis)
+
+    def integral(x: np.ndarray) -> np.ndarray:
+        whole = np.floor(x / size)
+        index = np.minimum(np.floor(x - whole * size).astype(np.intp), size - 1)
+        part = (x - whole * size - index).reshape(shape)
+        low = np.take(cumulative, index, axis=axis)
+        high = np.take(cumulative, index + 1, axis=axis)
+        return whole.reshape(shape) * total + low + part * (high - low)
+
+    span = 1.0 / scale
+    return ((integral(at + span) - integral(at)) / span).astype(np.float32)
 
 
-def _resize_peak_bytes(panel: np.ndarray, shape: tuple[int, int]) -> int:
-    """What :py:func:`_resize_panel` holds at its peak, for one plane's resize."""
-    height, width = shape
-    plane = np.dtype(np.float32).itemsize
-    source = panel.shape[0] * panel.shape[1] * plane
+def _sample_peak_bytes(panel: np.ndarray, height: int, width: int) -> int:
+    """What :py:func:`_sample_axis` holds at its peak over a ``height`` x ``width`` viewport."""
+    channels = panel.shape[2]
+    pass_pixels = min(panel.shape[0] * width, height * panel.shape[1])
+    wide = np.dtype(np.float64).itemsize
     return (
         panel.nbytes
-        + height * width * panel.shape[2] * plane  # the output
-        + 2 * source  # the contiguous copy and Pillow's own
-        + 2 * height * width * plane  # the resized plane and its np.asarray copy
-        + width * panel.shape[0] * plane  # the horizontal pass
+        + panel.size * wide * 2  # the cumulative sums and their padded copy
+        + 7 * pass_pixels * channels * wide  # the first pass's integral() temporaries
+        + height * width * channels * 4  # the output
+        + 7 * height * width * channels * wide  # the second pass's own
     )
 
 
@@ -346,13 +365,14 @@ def draw_pattern_fill(
     viewport: tuple[int, int, int, int],
     psd: Any,
     desc: Descriptor,
-    anchor: tuple[int, int, int, int] | None = None,
+    anchor: tuple[float, float, float, float] | None = None,
 ) -> tuple[np.ndarray | None, np.ndarray | None]:
     r"""
     Create a pattern fill.
 
     The tiling starts at the top-left of ``anchor``, which defaults to
     ``viewport``, so a viewport larger than the anchor continues the same tiling.
+    The anchor is rounded to whole pixels at 100% scale.
 
     Example descriptor::
 
@@ -384,60 +404,35 @@ def draw_pattern_fill(
     panel = numpy_io.get_pattern(pattern, budget)
     assert panel.shape[0] > 0
 
-    # The scale is the file's, so the panel it sizes and the tiling of that
-    # panel across the viewport are both checked before they are allocated.
-    scale = float(desc.get(Key.Scale, 100.0)) / 100.0
-    if scale != 1.0:
-        try:
-            new_shape = (
-                max(1, int(panel.shape[0] * scale)),
-                max(1, int(panel.shape[1] * scale)),
-            )
-        except OverflowError as error:
-            raise _UnreadableDescriptor("Pattern scale is not finite.") from error
-        check_growth(
-            new_shape[0] * new_shape[1],
-            panel.shape[0] * panel.shape[1],
-            _SCALE_GROWTH,
-        )
-        check_pixel_size(
-            new_shape[1],
-            new_shape[0],
-            panel.shape[2],
-            budget,
-            estimated_bytes=_resize_peak_bytes(panel, new_shape),
-            warn=False,
-            max_dimension=dimension_limit(psd.version),
-        )
-        panel = _resize_panel(panel, new_shape)
-
     height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
-    # The tiling is shifted so that it starts at the anchor, not the viewport.
-    shift_y = shift_x = 0
-    if anchor is not None:
-        shift_y = (viewport[1] - anchor[1]) % panel.shape[0]
-        shift_x = (viewport[0] - anchor[0]) % panel.shape[1]
-    reps = (
-        int(np.ceil(float(height + shift_y) / panel.shape[0])),
-        int(np.ceil(float(width + shift_x) / panel.shape[1])),
-        1,
-    )
-    if reps[0] > 0 and reps[1] > 0:
-        tiled = (reps[0] * panel.shape[0], reps[1] * panel.shape[1])
-        # The limit is on the viewport; the tile is rounded up past it.
+    scale = float(desc.get(Key.Scale, 100.0)) / 100.0
+    if not math.isfinite(scale):
+        raise _UnreadableDescriptor("Pattern scale is not finite.")
+    # A pattern is never drawn smaller than a pixel a tile.
+    scales = [max(scale, 1.0 / size) for size in panel.shape[:2]]
+    if height > 0 and width > 0:
+        # The limit is on the viewport; the sampling is sized from it, not from the scale.
         check_pixel_size(
             width,
             height,
             panel.shape[2],
             budget,
-            # The panel stays live while it is tiled.
-            estimated_bytes=(
-                tiled[0] * tiled[1] * panel.shape[2] * panel.dtype.itemsize
-                + panel.nbytes
-            ),
+            estimated_bytes=_sample_peak_bytes(panel, height, width),
             warn=False,
             max_dimension=dimension_limit(psd.version),
         )
+    anchor_x, anchor_y = (
+        (viewport[0], viewport[1]) if anchor is None else (anchor[0], anchor[1])
+    )
+    if scale == 1.0:
+        anchor_x, anchor_y = math.floor(anchor_x + 0.5), math.floor(anchor_y + 0.5)
+    panel = panel.astype(np.float32, copy=False)
+    if panel.shape[0] * width <= height * panel.shape[1]:
+        horizontal = _sample_axis(panel, 1, viewport[0], width, anchor_x, scales[1])
+        pixels = _sample_axis(horizontal, 0, viewport[1], height, anchor_y, scales[0])
+    else:
+        vertical = _sample_axis(panel, 0, viewport[1], height, anchor_y, scales[0])
+        pixels = _sample_axis(vertical, 1, viewport[0], width, anchor_x, scales[1])
     # Taken from the pattern's own slot layout rather than from its color mode.
     # A mode-keyed count is only ever right by coincidence -- when the mode's
     # constant happens to equal the width this pattern stored -- and
@@ -446,9 +441,6 @@ def draw_pattern_fill(
     # never split off, and the array reached the canvas one plane too wide and
     # was rejected as inconsistent with it (#741).
     channels = numpy_io.get_pattern_color_channels(pattern)
-    pixels = np.tile(panel, reps)[
-        shift_y : shift_y + height, shift_x : shift_x + width, :
-    ]
     if pixels.shape[2] > channels:
         return pixels[:, :, :channels], pixels[:, :, -1:]
     return pixels, None

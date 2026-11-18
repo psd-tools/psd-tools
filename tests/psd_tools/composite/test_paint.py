@@ -1247,3 +1247,19 @@ def test_pattern_anchor_ignores_an_unreadable_phase(bad: object) -> None:
     desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
     desc[b"phase"][b"Hrzn"] = bad
     assert paint._pattern_anchor(layer, desc) is None
+
+
+# Water pattern fills at scales around the 50% where Photoshop switches from
+# reading the pattern bilinearly to averaging it; s_down also has a fractional phase.
+@pytest.mark.parametrize("name", ["s_up", "s_down", "s_half", "s_quarter"])
+def test_create_fill_scales_pattern_as_photoshop_does(name: str) -> None:
+    psd = PSDImage.open(full_name("layers/pattern-fill-scale.psd"))
+    layer = next(layer for layer in psd if layer.name == name)
+    stored, shape = layer.numpy("color"), layer.numpy("shape")
+    assert stored is not None and shape is not None
+    inside = shape[..., 0] > 0.99
+    assert inside.any()
+
+    color, _shape = paint.create_fill(layer, layer.bbox)
+    assert color is not None
+    np.testing.assert_allclose(color[inside], stored[inside], atol=2 / 255)

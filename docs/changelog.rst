@@ -11,8 +11,12 @@ Changelog
 - [fix] A pattern fill's tiling starts where Photoshop starts it, from the layer's
   reference point when ``Algn`` is on and from the document origin when off, shifted
   by ``phase``, in shape and pattern fill layers drawn without the stored pixels. It
-  started at the layer's top-left, so the tiles were out of phase. A pattern scaled
-  off 100% is still resized differently from Photoshop (#1106)
+  started at the layer's top-left, so the tiles were out of phase (#1106, #1107)
+
+- [fix] A scaled pattern is sampled as Photoshop does, at a fractional tile size,
+  instead of being resized to a whole-pixel tile that drifts out of phase across the
+  fill. This changes the pixels of scaled pattern fills, pattern overlays and pattern
+  strokes drawn without the stored pixels; 33% scales are still a little off (#1106)
 
 - [api] ``Layer.move_to_group()``, ``Group.group_layers()``, ``Layer.delete_layer()`` and
   ``Layer.clipping_layer`` emit ``DeprecationWarning``; use ``move_to()``,
