@@ -2108,7 +2108,9 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         self._invalidate_bbox()
 
     def _reject_cross_document(self, layers: Iterable[Layer]) -> None:
-        if any(layer._psd is not self._psd for layer in layers):
+        if any(
+            isinstance(layer, Layer) and layer._psd is not self._psd for layer in layers
+        ):
             raise ValueError(
                 "A layer cannot be moved into another document; "
                 "use Layer.copy_to() to copy it."

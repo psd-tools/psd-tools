@@ -43,6 +43,18 @@ def test_a_cross_document_move_raises_and_changes_nothing(operation: str) -> Non
     assert layer.parent is source
 
 
+@pytest.mark.parametrize("operation", ["create_group", "group_layers"])
+def test_a_non_layer_item_raises_type_error(operation: str) -> None:
+    dest, _ = _documents()
+    add = {
+        "create_group": lambda: dest.create_group([1]),  # type: ignore[list-item]
+        "group_layers": lambda: Group.group_layers(dest, [1]),  # type: ignore[list-item]
+    }[operation]
+
+    with pytest.raises(TypeError):
+        add()
+
+
 def test_a_nested_cross_document_layer_raises() -> None:
     dest, source = _documents()
     group = next(layer for layer in source.descendants() if isinstance(layer, Group))

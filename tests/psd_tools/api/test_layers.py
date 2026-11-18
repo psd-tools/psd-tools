@@ -1503,7 +1503,7 @@ def test_artboard_background_chroma_is_offset_encoded_on_a_lab_document(
 # box differs from the armed one. That ordering matters: a test written the way
 # the issue's repro is -- create a group, add to it, then read -- cannot fail on
 # Python >= 3.12, because a fresh group only gets ``(0, 0, 0, 0)`` cached when
-# ``_update_children()``'s ``isinstance(layer, GroupMixin)`` executes the
+# ``_check_insertion()``'s ``isinstance(layer, GroupMixin)`` executes the
 # ``bbox`` descriptor, and CPython 3.12 made ``isinstance()`` against a
 # ``runtime_checkable`` protocol use ``inspect.getattr_static()`` instead of
 # ``hasattr()``. Read-then-mutate has no such dependency and fails on every
