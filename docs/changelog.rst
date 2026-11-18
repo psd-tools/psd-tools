@@ -9,6 +9,10 @@ Changelog
   ``move_to_group()`` or ``group_layers()`` raises ``ValueError`` instead of moving
   it, as announced in 1.25.0. Use ``Layer.copy_to()`` (#1005, #1001)
 
+- [fix] ``composite(force=True)`` no longer widens the outside stroke of a shape layer
+  by a spurious column of pixels beside the path. Affects shape layers with a stroke
+  effect whose path edge falls on a pixel boundary (#953)
+
 - [api] ``Layer.duplicate()`` places an artboard copy 100 px to the right of its
   source, as Photoshop does, instead of on top of it. **Behaviour change** for
   artboards; pass ``offset=(0, 0)`` for the old placement. New ``offset=(dx, dy)``

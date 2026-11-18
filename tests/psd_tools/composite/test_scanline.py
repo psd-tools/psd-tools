@@ -35,6 +35,14 @@ def test_a_pixel_aligned_path_has_no_fringe() -> None:
     assert np.array_equal(coverage[:, 8], coverage[8])
 
 
+def test_a_row_right_of_the_path_has_exactly_no_coverage() -> None:
+    """Prefix-sum cancellation leaves no positive value beyond the path's edge."""
+    coverage = scanline.fill_coverage([_rectangle(4, 3, 26, 25)], 40, 40)
+
+    assert not coverage[:, 26:].any()
+    assert not coverage[:, :4].any()
+
+
 @pytest.mark.parametrize(
     ("polylines", "area"),
     [

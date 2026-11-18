@@ -98,6 +98,22 @@ def test_a_masked_shape_layers_stroke_is_cut_by_its_raster_mask(
     assert layer.mask.bbox[0] == 12
 
 
+@pytest.mark.parametrize("force", [False, True])
+def test_a_forced_outside_stroke_is_as_wide_as_the_stroke(force: bool) -> None:
+    """The outside stroke ends ``size`` px past the path's right edge (#953)."""
+    psd = PSDImage.open(full_name("effects/shape-stroke-raster-mask.psd"))
+    layer = next(sub for sub in psd.descendants() if sub.has_mask())
+    effect = next(iter(_readable(layer, "stroke")))
+    size = int(effect.descriptor[b"Sz  "].value)
+    assert layer.vector_mask is not None
+    right = round(layer.vector_mask.bbox[2] * psd.width)
+
+    color, _, _ = composite(psd, force=force)
+    background = color[14, psd.width - 1, 0]
+    row = color[14, right + size : right + size + 6, 0]
+    assert np.allclose(row, background, atol=1e-3)
+
+
 def test_a_shape_layer_without_a_stroke_does_not_rasterize_its_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
