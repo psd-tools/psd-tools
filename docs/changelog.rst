@@ -5,8 +5,14 @@ Changelog
 -------------------
 
 - [fix] A shape layer's pattern fill is drawn when compositing without the stored
-  pixels (``force=True``, or no stored pixels); it was painted as an opaque fill.
-  The pattern's phase is not modelled, as for pattern fill layers (#1060)
+  pixels (``force=True``, or no stored pixels); it was painted as an opaque fill
+  (#1060)
+
+- [fix] A pattern fill's tiling starts where Photoshop starts it, from the layer's
+  reference point when ``Algn`` is on and from the document origin when off, shifted
+  by ``phase``, in shape and pattern fill layers drawn without the stored pixels. It
+  started at the layer's top-left, so the tiles were out of phase. A pattern scaled
+  off 100% is still resized differently from Photoshop (#1106)
 
 - [api] ``Layer.move_to_group()``, ``Group.group_layers()``, ``Layer.delete_layer()`` and
   ``Layer.clipping_layer`` emit ``DeprecationWarning``; use ``move_to()``,

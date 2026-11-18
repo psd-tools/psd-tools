@@ -12,6 +12,8 @@ solid color, gradient or stroke on such a document tripped the width assertion,
 and an HSB descriptor raised outright (#730).
 """
 
+import math
+
 import numpy as np
 import pytest
 from PIL import Image
@@ -1194,9 +1196,54 @@ def test_create_fill_draws_vector_stroke_content_pattern(name: str) -> None:
     content = layer.tagged_blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)
     assert Enum.Pattern in content
 
+    x, y = (math.floor(value + 0.5) for value in layer.reference_point)
     color, _shape = paint.create_fill(layer, layer.bbox)
-    expected, _ = paint.draw_pattern_fill(layer.bbox, psd, content)
+    expected, _ = paint.draw_pattern_fill(layer.bbox, psd, content, (x, y, x, y))
     assert color is not None
     assert color.shape == (layer.height, layer.width, 3)
     np.testing.assert_array_equal(color, expected)
     assert color.min() < 1.0
+
+
+# Each layer is a Water pattern fill at 100%, laid over a path whose box is not
+# where Photoshop starts the tiling. Photoshop rendered the stored pixels.
+@pytest.mark.parametrize(
+    ("name", "anchor"),
+    [
+        ("f_link", (7, 11)),  # Algn: the reference point
+        ("f_doc", (0, 0)),  # not Algn: the document origin
+        ("f_phase", (20, 40)),  # the reference point plus phase (13, 29)
+        ("f_round", (14, 29)),  # the origin plus phase (13.5, 29.25), rounded
+    ],
+)
+def test_create_fill_starts_pattern_where_photoshop_does(
+    name: str, anchor: tuple[int, int]
+) -> None:
+    psd = PSDImage.open(full_name("layers/pattern-fill-anchor.psd"))
+    layer = next(layer for layer in psd if layer.name == name)
+    stored, shape = layer.numpy("color"), layer.numpy("shape")
+    assert stored is not None and shape is not None
+    inside = shape[..., 0] > 0.99
+    assert inside.any()
+    desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+
+    color, _shape = paint.create_fill(layer, layer.bbox)
+    assert color is not None
+    np.testing.assert_allclose(color[inside], stored[inside], atol=1 / 255)
+
+    x, y = anchor
+    drawn, _ = paint.draw_pattern_fill(layer.bbox, psd, desc, (x, y, x, y))
+    assert drawn is not None
+    np.testing.assert_array_equal(color, drawn)
+    unanchored, _ = paint.draw_pattern_fill(layer.bbox, psd, desc)
+    assert unanchored is not None
+    assert np.abs(unanchored - stored)[inside].mean() > 0.05
+
+
+@pytest.mark.parametrize("bad", ["abc", float("inf"), float("nan")])
+def test_pattern_anchor_ignores_an_unreadable_phase(bad: object) -> None:
+    psd = PSDImage.open(full_name("layers/pattern-fill-anchor.psd"))
+    layer = next(layer for layer in psd if layer.name == "f_phase")
+    desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
+    desc[b"phase"][b"Hrzn"] = bad
+    assert paint._pattern_anchor(layer, desc) is None
