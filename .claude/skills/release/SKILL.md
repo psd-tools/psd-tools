@@ -54,34 +54,6 @@ Now list the commits since the last release by running one of these commands:
 
 You must run this command and review the output before proceeding to Step 0 or Step 2.
 
-## Step 1b — Prose sweep
-
-Rationale docstrings and comments accumulate across a release: each fix PR appends a
-paragraph explaining what it measured, and none compresses what is already there. Trim
-them now, while the release is the unit of review — nothing enforces this mechanically
-(ruff's docstring rules are off, `ruff format` does not reflow comments or docstrings,
-and no line-length rule is selected), so this step is the only thing that catches it.
-
-Measure rather than eyeball — the worst ratios sit on the smallest helpers, which read
-as fine in a diff:
-
-```bash
-uv run python tools/prose_density.py
-```
-
-Anything above roughly 3x prose-to-code deserves a look. Keep what cost real
-measurement, and what stops a future reader undoing a fix: why a bound is shaped the
-way it is, why a guard cannot be tighter, what an experiment ruled out. Cut history the
-changelog already holds, corpus statistics the tests already assert, and the same
-explanation repeated at three layers.
-
-Trimming is a separate commit from the release commit, and touches comments and
-docstrings only. If any line of code moves, stop and treat it as a code change.
-
-It is still a commit, so it needs the release branch to exist: create it as Step 4
-describes, rather than landing this on `main`. It is the same branch, created once —
-Step 4 does not create a second one.
-
 ## Step 1c — Reconcile the release milestone
 
 Release scope is also tracked in a milestone, titled bare without the `v` prefix
@@ -169,8 +141,7 @@ The branch name is the only thing `auto-tag` reads the version from, and it matc
 yields an empty version, the `tag` job is skipped on `version != ''`, and the run
 still reports success — so nothing is tagged and nothing says so.
 
-Create it once, by whichever of these two routes applies — Step 1b's trimming commit
-needs the same branch, so it may already exist.
+Create it once, by whichever of these two routes applies.
 
 If the project's instructions ask for a worktree, create the worktree and rename its
 branch from inside it. `EnterWorktree` names the branch after the worktree rather than
@@ -218,7 +189,6 @@ Run `gh pr create` with `--title "Release vVERSION"` and a `--body` containing:
 - A `### Release checklist` section with these items:
   - `[ ] Changelog entry reviewed and accurate`
   - `[ ] Version follows PEP 440`
-  - `[ ] Prose sweep done (Step 1b), or explicitly skipped`
   - `[ ] Milestone reconciled both ways (Step 1c)`
 - A closing note: "After this PR is merged, the `auto-tag` workflow will tag the merge commit
   as `vVERSION` and the `release` workflow will build wheels and publish to PyPI automatically."

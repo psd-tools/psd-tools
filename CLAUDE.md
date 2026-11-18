@@ -120,8 +120,7 @@ assert color[row, column] == pytest.approx(share * stroke_color, abs=0.002)
 That is checked on every run; the same number in a docstring rots silently.
 
 Existing long comment blocks are the tree's current state, not a precedent to
-match — see #891. Measure with `uv run python tools/prose_density.py`. This is
-the [Changelog](#changelog) policy applied to source.
+match — see #891. This is the [Changelog](#changelog) policy applied to source.
 
 ## Changelog
 
