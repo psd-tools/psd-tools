@@ -978,3 +978,28 @@ def test_a_grid_cell_renders_to_photoshops_preview(filename: str, name: str) -> 
     without = float(_mse(reference[region], unshadowed[region]))
     assert without > _MEASURABLE, "the cell has no shadow"
     assert float(_mse(reference[region], shadowed[region])) * _IMPROVEMENT <= without
+
+
+def test_spread_runs_fewer_transforms_on_a_large_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The levels shrink with the canvas, to a lowest and a highest."""
+    shape = np.zeros((41, 41), dtype=np.float32)
+    shape[10:31, 10:31] = np.linspace(0.1, 1.0, 441).reshape(21, 21)
+    ndi = pytest.importorskip("scipy.ndimage")
+    calls: list[int] = []
+    real = ndi.distance_transform_edt
+
+    def counted(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ndi, "distance_transform_edt", counted)
+    effects._spread(shape, 4.0)
+    full = len(calls)
+    calls.clear()
+    monkeypatch.setattr(effects, "_SPREAD_PIXELS", shape.size * 2)
+    grown = effects._spread(shape, 4.0)
+    assert full > len(calls) == effects._SPREAD_MIN_LEVELS
+    assert float(grown[20, 20]) == pytest.approx(float(shape[20, 20]))
+    assert (grown > shape).any()

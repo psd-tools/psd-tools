@@ -548,6 +548,12 @@ _SHADOW_SIGMA_PER_SIZE = 0.45
 # grown at this many of its own, spaced evenly between its lowest and highest.
 _SPREAD_LEVELS = 16
 
+# Distance-transform pixels spread may spend on one silhouette, so the levels
+# fall with the canvas and a large layer costs no more than a small one; never
+# fewer than a lowest and a highest.
+_SPREAD_PIXELS = 1 << 24
+_SPREAD_MIN_LEVELS = 2
+
 
 def _shadow_offset(distance: float, angle: float) -> tuple[float, float]:
     """How far a shadow is cast, as ``(dx, dy)`` in image coordinates.
@@ -650,7 +656,8 @@ def _spread(alpha: np.ndarray, grow: float) -> np.ndarray:
     The levels are the silhouette's own coverages: all of them when it has
     few, which rounds none and costs a binary silhouette a single transform.
     With more, they are the lowest of its coverages at or above each of that
-    many evenly spaced values between its lowest and highest, so a coverage
+    many evenly spaced values between its lowest and highest (fewer on a large
+    canvas, to bound the time), so a coverage
     grows at a level less than one space below it, and the grown fringe is
     never more than a space under a full grey dilation's. The spacing
     follows wherever the coverage lies: a feather that never passes 5% is
@@ -658,9 +665,12 @@ def _spread(alpha: np.ndarray, grow: float) -> np.ndarray:
     """
     from scipy.ndimage import distance_transform_edt  # type: ignore[import-untyped]  # noqa: PLC0415
 
+    budget = min(
+        _SPREAD_LEVELS, max(_SPREAD_MIN_LEVELS, _SPREAD_PIXELS // max(alpha.size, 1))
+    )
     levels = np.unique(alpha[alpha > 0.0])
-    if levels.size > _SPREAD_LEVELS:
-        spaced = np.linspace(levels[0], levels[-1], _SPREAD_LEVELS)
+    if levels.size > budget:
+        spaced = np.linspace(levels[0], levels[-1], budget)
         picks = np.searchsorted(levels, spaced, side="left")
         levels = np.unique(levels[np.minimum(picks, levels.size - 1)])
     grown = np.zeros(alpha.shape, dtype=np.float32)
