@@ -155,7 +155,7 @@ paint the entire region if there is no associated mask. Sub-classes of
 :py:class:`~psd_tools.api.layers.AdjustmentLayer` represents layer
 adjustment applied to the composed image. See :ref:`adjustment-layers`.
 
-:py:attr:`~psd_tools.api.psd_image.PSDImage.artboards` lists the top-level
+:py:attr:`~psd_tools.PSDImage.artboards` lists the top-level
 :py:class:`~psd_tools.api.layers.Artboard` layers. The document composite and
 preview span the whole canvas; composite one artboard on its own with
 :py:meth:`Artboard.composite() <psd_tools.api.layers.Artboard.composite>`, and
@@ -170,7 +170,7 @@ read its stored background with
 Modifying the layer structure
 -----------------------------
 
-A layer has at most one parent. :py:class:`~psd_tools.api.psd_image.PSDImage`
+A layer has at most one parent. :py:class:`~psd_tools.PSDImage`
 and :py:class:`~psd_tools.api.layers.Group` hold their child layers in order,
 and adding a layer that already has a parent moves it out of that parent rather
 than copying it. The internal model of the layer structure is updated
@@ -299,7 +299,7 @@ Every edit above marks the document as edited, so ``save()`` regenerates the
 flattened preview instead of writing the one the file was opened with. An
 edit this API cannot see -- reaching past it into a descriptor, a tagged
 block or any other low-level record -- does not, and has to say so with
-:py:meth:`~psd_tools.api.psd_image.PSDImage.mark_updated`::
+:py:meth:`~psd_tools.PSDImage.mark_updated`::
 
     psdimage.mark_updated()
 
@@ -360,8 +360,8 @@ option::
     - Duotone and LAB blending is approximated, and warns when used.
     - CMYK and LAB images are converted to sRGB through the embedded ICC
       profile by default. Pass ``apply_icc=False`` to
-      :py:meth:`~psd_tools.api.psd_image.PSDImage.composite` or
-      :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` to keep the document's
+      :py:meth:`~psd_tools.PSDImage.composite` or
+      :py:meth:`~psd_tools.PSDImage.topil` to keep the document's
       own colour space. A CMYK document without an embedded profile stays
       in CMYK, which PNG cannot store; save it as TIFF or JPEG instead.
     - Multichannel documents come back as a single-channel image, because PIL
@@ -372,7 +372,7 @@ option::
       document and displays the merged image data, so compositing a
       multichannel document that has layers does not reproduce what Photoshop
       shows for the same file. Use
-      :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged data.
+      :py:meth:`~psd_tools.PSDImage.topil` for the merged data.
 
 Exporting data to NumPy
 -----------------------

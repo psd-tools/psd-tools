@@ -16,3 +16,10 @@ Parsing limits
 .. autoclass:: psd_tools.ParseLimits
 
 .. autoexception:: psd_tools.ParseLimitError
+
+Warnings
+--------
+
+.. autoclass:: psd_tools.PSDDecompressionWarning
+
+.. autoclass:: psd_tools.PSDLargeImageWarning

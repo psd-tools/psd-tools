@@ -376,7 +376,7 @@ class Layer(LayerProtocol):
         # Every parent is a container that caches a box of its own, and the
         # document is one of them: naming ``Group`` and ``Artboard`` here
         # stopped the walk one level short of
-        # :py:class:`~psd_tools.api.psd_image.PSDImage`, which is a
+        # :py:class:`~psd_tools.PSDImage`, which is a
         # ``GroupMixin`` but not a ``Layer``, and left the document's box stale
         # after a top-level child changed (#814).
         parent = self.parent
@@ -1774,7 +1774,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
     """
     Container behaviour shared by groups and documents.
 
-    :py:class:`Group` and :py:class:`~psd_tools.api.psd_image.PSDImage` both
+    :py:class:`Group` and :py:class:`~psd_tools.PSDImage` both
     hold an ordered list of child layers, and this mixin supplies what
     operates on it: iteration and indexing, the mutation methods below, the
     :py:meth:`descendants` walk, and a :py:attr:`bbox` computed from the
@@ -1807,7 +1807,7 @@ class GroupMixin(GroupMixinProtocol, Protocol):
         ``GroupMixin`` precedes :py:class:`Layer` in ``Group``'s MRO, so this
         is what a group invalidates through. It differs from
         :py:meth:`Layer._invalidate_bbox` only in being available on
-        :py:class:`~psd_tools.api.psd_image.PSDImage`, which caches a box here
+        :py:class:`~psd_tools.PSDImage`, which caches a box here
         too but is not a ``Layer``; the walk stops there, since the document
         has no parent.
         """
@@ -2972,7 +2972,7 @@ class PixelLayer(Layer):
             depth but with a PIL image's *precision*, which is 8 bits: PIL
             has no 16-bit RGB, CMYK or LAB mode to carry more, and the image
             is converted to
-            :py:attr:`~psd_tools.api.psd_image.PSDImage.pil_mode` on the way
+            :py:attr:`~psd_tools.PSDImage.pil_mode` on the way
             in. The values are widened, not padded -- 128 becomes 32896 at
             depth 16 -- so the layer reads back as the image given here.
             Use :py:meth:`~psd_tools.api.layers.PixelLayer.fromarray` to keep

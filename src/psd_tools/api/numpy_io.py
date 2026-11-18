@@ -870,7 +870,7 @@ def _transparency_slot(psdimage: "PSDProtocol", color_planes: int) -> int:
     Without an ``ALPHA_IDENTIFIERS`` resource, the channel past the color planes
     is the answer only if it is the *single* extra channel, the one
     :func:`~psd_tools.api.utils.has_transparency` saw; declining there would
-    save a :py:meth:`~psd_tools.api.psd_image.PSDImage.frompil` document of a
+    save a :py:meth:`~psd_tools.PSDImage.frompil` document of a
     transparent image as fully transparent.
 
     Two or more extra channels with no identifiers name no slot: the alpha is

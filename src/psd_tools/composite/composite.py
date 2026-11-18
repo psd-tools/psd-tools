@@ -743,7 +743,7 @@ def composite(
           the layer records when it opens a multichannel document and displays
           the merged image data instead, so a multichannel document that has
           layers does not render here the way it looks there. Use
-          :py:meth:`~psd_tools.api.psd_image.PSDImage.topil` for the merged
+          :py:meth:`~psd_tools.PSDImage.topil` for the merged
           data.
     """
     if viewport is None:
