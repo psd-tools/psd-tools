@@ -9,8 +9,8 @@ import pytest
 from psd_tools import PSDImage
 from psd_tools.composite import paint
 from psd_tools.constants import Tag
-from psd_tools.psd.descriptor import Descriptor, UnitFloat
-from psd_tools.terminology import Key, Unit
+from psd_tools.psd.descriptor import Descriptor
+from psd_tools.terminology import Key
 
 from ..utils import full_name
 
@@ -157,9 +157,8 @@ def test_a_fill_layer_over_the_budget_still_raises(force: bool) -> None:
         for x in psd.descendants()
         if x.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING) is not None
     )
-    desc = layer.tagged_blocks.get_data(Tag.PATTERN_FILL_SETTING)
-    desc[Key.Scale] = UnitFloat(unit=Unit.Percent, value=1e7)
     forged = _reopened(psd)
+    forged._max_alloc_bytes = 1 << 12
     forged_layer = next(x for x in forged.descendants() if x.name == layer.name)
     with pytest.raises(ValueError, match="over the"):
         forged_layer.composite(force=force)
