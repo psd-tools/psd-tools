@@ -549,8 +549,8 @@ _SHADOW_SIGMA_PER_SIZE = 0.45
 _SPREAD_LEVELS = 16
 
 # Distance-transform pixels spread may spend on one silhouette, so the levels
-# fall with the canvas and a large layer costs no more than a small one; never
-# fewer than keeps a coverage's grown fringe within one level interval,
+# fall with the canvas and a large layer costs no more than a small one. The
+# floor keeps a coverage's grown fringe within one level interval,
 # 1 / (_SPREAD_MIN_LEVELS - 1) of the range, of a full grey dilation's.
 _SPREAD_PIXELS = 1 << 24
 _SPREAD_MIN_LEVELS = 8
