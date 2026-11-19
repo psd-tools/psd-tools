@@ -8,6 +8,10 @@ Changelog
   ``psd_tools.api`` page is now an overview that links to it. The package-level
   warnings are documented there too (#1115)
 
+- [fix] A shape or fill layer that falls back to its stored pixels when its fill
+  cannot be read is no longer masked or stroked a second time under
+  ``force=True`` (#1059, #1116)
+
 1.27.0 (2026-11-18)
 -------------------
 
