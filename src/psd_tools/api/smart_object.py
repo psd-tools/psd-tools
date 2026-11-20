@@ -136,7 +136,8 @@ class SmartObject:
             behaviour). Only use this for fully trusted files. Cannot be combined
             with ``external_dir``.
         :raises ValueError: If ``trust_full_path`` is combined with
-            ``external_dir``, or a ``relPath`` escapes the confinement directory.
+            ``external_dir``, a ``relPath`` escapes the confinement directory, or
+            the link is an alias.
 
         Example::
 
@@ -193,7 +194,7 @@ class SmartObject:
             with open(filepath, "rb") as f:
                 yield f
         else:
-            raise NotImplementedError("alias is not supported.")
+            raise ValueError("Alias smart objects are not supported")
 
     @property
     def data(self) -> bytes:

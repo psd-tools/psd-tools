@@ -130,6 +130,17 @@ def _make_external_smart_object(
     return so
 
 
+def test_alias_smart_object_raises_value_error() -> None:
+    so = _make_external_smart_object("/x/a.png", "a.png")
+    assert so._data is not None
+    so._data.kind = LinkedLayerType.ALIAS
+    assert so.kind == "alias"
+    with pytest.raises(ValueError, match="Alias"), so.open():
+        pass
+    with pytest.raises(ValueError, match="Alias"):
+        _ = so.data
+
+
 class TestSaveSecurity:
     """SmartObject.save() must not write outside the target directory."""
 

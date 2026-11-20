@@ -4,6 +4,10 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [api] ``SmartObject.open()`` and ``SmartObject.data`` on
+  an alias link raise ``ValueError`` instead of ``NotImplementedError``. Callers that
+  catch ``NotImplementedError`` must catch ``ValueError`` instead (#1111)
+
 - [api] Add ``toarray()`` on ``PSDImage`` and layers (``numpy()`` stays as an alias),
   ``PSDImage.fromarray()``, ``Layer.create_mask_from_array()`` and
   ``Layer.update_mask_from_array()``, the array counterparts of the PIL entry points
