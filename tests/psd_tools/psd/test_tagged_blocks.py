@@ -13,6 +13,7 @@ from psd_tools.psd.base import IntegerElement
 from psd_tools.psd.layer_and_mask import ChannelImageData, LayerInfoBlock, LayerRecords
 from psd_tools.psd.parse_limits import ParseLimitError
 from psd_tools.psd.tagged_blocks import (
+    TYPES,
     Annotation,
     Annotations,
     ChannelBlendingRestrictionsSetting,
@@ -183,6 +184,55 @@ def test_a_parser_validation_failure_falls_back_to_bytes(
 ) -> None:
     block = TaggedBlock.read(_raw_block(key.value, payload))
     assert isinstance(block.data, bytes)
+
+
+_PARSER_ERRORS = [
+    struct.error,
+    IndexError,
+    KeyError,
+    AssertionError,
+    StopIteration,
+]
+
+
+def _raising(exc: type[Exception]) -> Any:
+    def parse(*args: Any, **kwargs: Any) -> Any:
+        raise exc("forged")
+
+    return parse
+
+
+@pytest.mark.parametrize("exc", _PARSER_ERRORS)
+@pytest.mark.parametrize("key", [Tag.CURVES, Tag.LINKED_LAYER2])
+def test_a_parser_raising_any_exception_falls_back_to_bytes(
+    monkeypatch: pytest.MonkeyPatch, key: Tag, exc: type[Exception]
+) -> None:
+    kls = TYPES[key]
+    monkeypatch.setattr(kls, "frombytes", _raising(exc))
+    monkeypatch.setattr(kls, "read", _raising(exc))
+    block = TaggedBlock.read(_raw_block(key.value, b"\x01\x02\x03\x04"))
+    assert block.data == b"\x01\x02\x03\x04"
+
+
+@pytest.mark.parametrize("exc", _PARSER_ERRORS)
+@pytest.mark.parametrize("key", [Tag.SECTION_DIVIDER_SETTING, Tag.LAYER_16])
+def test_a_structural_parser_raising_any_exception_still_raises(
+    monkeypatch: pytest.MonkeyPatch, key: Tag, exc: type[Exception]
+) -> None:
+    monkeypatch.setattr(TYPES[key], "frombytes", _raising(exc))
+    with pytest.raises(exc):
+        TaggedBlock.read(_raw_block(key.value, b"\x01\x02\x03\x04"))
+
+
+@pytest.mark.parametrize("key", [Tag.CURVES, Tag.LINKED_LAYER2])
+def test_a_parse_limit_error_is_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch, key: Tag
+) -> None:
+    kls = TYPES[key]
+    monkeypatch.setattr(kls, "frombytes", _raising(ParseLimitError))
+    monkeypatch.setattr(kls, "read", _raising(ParseLimitError))
+    with pytest.raises(ParseLimitError):
+        TaggedBlock.read(_raw_block(key.value, b"\x01\x02\x03\x04"))
 
 
 def test_a_malformed_block_keeps_its_bytes_and_reads_as_missing() -> None:

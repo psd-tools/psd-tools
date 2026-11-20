@@ -4,6 +4,9 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [fix] A tagged block parser that fails with any exception now falls back to the raw
+  bytes instead of aborting ``PSDImage.open()``; layer-structure blocks still raise (#1112)
+
 - [api] ``SmartObject.open()`` and ``SmartObject.data`` on
   an alias link raise ``ValueError`` instead of ``NotImplementedError``. Callers that
   catch ``NotImplementedError`` must catch ``ValueError`` instead (#1111)
