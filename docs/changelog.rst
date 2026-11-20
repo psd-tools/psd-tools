@@ -4,7 +4,7 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
-- [api] **Backwards-incompatible.** ``SmartObject.open()`` and ``SmartObject.data`` on
+- [api] ``SmartObject.open()`` and ``SmartObject.data`` on
   an alias link raise ``ValueError`` instead of ``NotImplementedError``. Callers that
   catch ``NotImplementedError`` must catch ``ValueError`` instead (#1111)
 
