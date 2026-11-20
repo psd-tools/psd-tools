@@ -4,10 +4,9 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
-- [api] **Backwards-incompatible.** ``SmartObject.open()`` on an alias link raises
-  ``ValueError`` instead of ``NotImplementedError``, so a file can no longer escape
-  ``except (ValueError, OSError)``. Callers that catch ``NotImplementedError`` must
-  catch ``ValueError`` (#1111)
+- [api] **Backwards-incompatible.** ``SmartObject.open()`` and ``SmartObject.data`` on
+  an alias link raise ``ValueError`` instead of ``NotImplementedError``. Callers that
+  catch ``NotImplementedError`` must catch ``ValueError`` instead (#1111)
 
 - [api] Add ``toarray()`` on ``PSDImage`` and layers (``numpy()`` stays as an alias),
   ``PSDImage.fromarray()``, ``Layer.create_mask_from_array()`` and
