@@ -421,9 +421,8 @@ def test_group_layers(
     smartobject_layer = _local(smartobject_layer, psdimage)
     fill_layer = _local(fill_layer, psdimage)
     adjustment_layer = _local(adjustment_layer, psdimage)
-    test_group = Group.group_layers(
-        parent=psdimage,  # type: ignore[arg-type]
-        layers=[pixel_layer, smartobject_layer, fill_layer, adjustment_layer],
+    test_group = psdimage.create_group(
+        [pixel_layer, smartobject_layer, fill_layer, adjustment_layer]
     )
     assert len(test_group) == 4
 
@@ -697,10 +696,7 @@ def test_layer_move_up(
     fill_layer = _local(fill_layer, group)
     adjustment_layer = _local(adjustment_layer, group)
     group.extend([pixel_layer])
-    test_group = Group.group_layers(
-        parent=group,
-        layers=[smartobject_layer, fill_layer, adjustment_layer],
-    )
+    test_group = group.create_group([smartobject_layer, fill_layer, adjustment_layer])
     with pytest.raises(IndexError):
         test_group.move_up(1)
     assert test_group._parent is not None
@@ -731,10 +727,7 @@ def test_layer_move_down(
     fill_layer = _local(fill_layer, group)
     adjustment_layer = _local(adjustment_layer, group)
     group.extend([pixel_layer])
-    test_group = Group.group_layers(
-        parent=group,
-        layers=[smartobject_layer, fill_layer, adjustment_layer],
-    )
+    test_group = group.create_group([smartobject_layer, fill_layer, adjustment_layer])
     with pytest.raises(IndexError):
         pixel_layer.move_down(1)
     assert test_group._parent is not None
@@ -791,19 +784,10 @@ def test_detached_layer_ops_raise() -> None:
         for op in (
             layer.move_up,
             layer.move_down,
-            layer.delete_layer,
         ):
             with pytest.raises(ValueError, match="not attached to a document"):
                 op()
     assert group[0] is child
-
-
-def test_delete_layer_attached() -> None:
-    psd = PSDImage.open(full_name("group.psd"))
-    group = next(layer for layer in psd if isinstance(layer, Group))
-    child = group[0]
-    assert child.delete_layer() is child
-    assert child not in group
 
 
 def test_group_append(group: Group, pixel_layer: PixelLayer) -> None:
