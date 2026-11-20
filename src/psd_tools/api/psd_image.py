@@ -300,7 +300,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         planes = numpy_io.encode_image_data(
             psdimage, values[:, :, :planes_count], values[:, :, planes_count:]
         )
-        image_data = ImageData(compression=compression)
+        image_data = ImageData(
+            compression=layers._compression_for(compression, header.depth)
+        )
         image_data.set_data(planes, header)
         psdimage._record.image_data = image_data
         if color is not None:

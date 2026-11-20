@@ -170,3 +170,12 @@ def test_update_mask_from_array_error_leaves_mask_unchanged() -> None:
     after = layer.toarray("mask", real_mask=False)
     assert before is not None and after is not None
     np.testing.assert_array_equal(before, after)
+
+
+def test_psdimage_fromarray_bitmap_takes_zip_for_prediction() -> None:
+    psd = PSDImage.fromarray(
+        np.eye(4, 6, dtype=np.float32),
+        mode="1",
+        compression=Compression.ZIP_WITH_PREDICTION,
+    )
+    np.testing.assert_array_equal(psd.toarray()[:, :, 0], np.eye(4, 6))
