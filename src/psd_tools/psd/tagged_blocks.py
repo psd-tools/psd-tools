@@ -325,7 +325,7 @@ class TaggedBlock(BaseElement):
                     data = kls.frombytes(raw_data, version=version)
                 except ParseLimitError:
                     raise
-                except (OSError, ValueError) as e:
+                except Exception as e:
                     if key in cls._STRUCTURAL:
                         raise
                     # Fallback to raw data.
@@ -376,7 +376,7 @@ class TaggedBlock(BaseElement):
             if is_readable(fp, pad(length, padding) - length):
                 read_padding(fp, length, padding)
             raise
-        except (OSError, ValueError) as e:
+        except Exception as e:
             if key in cls._STRUCTURAL:
                 raise
             message = f"Failed to read tagged block {key!r}: {e}"
