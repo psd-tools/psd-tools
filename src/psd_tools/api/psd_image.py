@@ -251,9 +251,10 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         The inverse of :py:meth:`toarray`: the array is stored at the
         document's depth, in the convention ``toarray()`` returns, so a CMYK
-        array holds 255 for no ink. With a transparency channel the colour is
-        stored composited over white, as in the merged preview, so colour
-        under transparent pixels does not survive ``toarray()``.
+        array holds 255 for no ink. In RGB and grayscale modes with a
+        transparency channel the colour is stored composited over white, as in
+        the merged preview, so colour under transparent pixels does not
+        survive ``toarray()``.
 
         :param array: ``(height, width, channels)`` array, or ``(height,
             width)`` for a single channel. ``channels`` is the mode's colour
