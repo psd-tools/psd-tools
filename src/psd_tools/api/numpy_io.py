@@ -243,6 +243,8 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
         psdimage.width,
         lut=lut,
     )
+    if array.size == 0:
+        raise ValueError("Merged image data contains no complete pixels")
     if lut is not None:
         array = array.reshape((psdimage.height, psdimage.width, -1))
     else:
