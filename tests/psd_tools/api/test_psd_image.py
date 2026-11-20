@@ -12,8 +12,9 @@ from PIL import Image
 from psd_tools.api.layers import Group
 from psd_tools.api.psd_image import PSDImage
 from psd_tools.api.utils import get_transparency_index, has_transparency
-from psd_tools.constants import BlendMode, ColorMode, Compression, Tag
+from psd_tools.constants import BlendMode, ColorMode, Compression, Resource, Tag
 from psd_tools.psd.descriptor import Double
+from psd_tools.psd.image_resources import AlphaIdentifiers, ImageResource
 from psd_tools.psd.layer_and_mask import LayerInfo
 from psd_tools.terminology import Key
 
@@ -45,6 +46,81 @@ def test_frompil_psb() -> None:
     image = Image.new("RGB", (30001, 24))
     psb = PSDImage.frompil(image)
     assert psb.version == 2
+
+
+@pytest.mark.parametrize("mode", ["RGBA", "LA"])
+@pytest.mark.parametrize(
+    "factory, depth",
+    [
+        ("new", 8),
+        ("new", 16),
+        ("new", 32),
+        ("frompil", 8),
+        ("fromarray", 8),
+        ("fromarray", 16),
+        ("fromarray", 32),
+    ],
+)
+@pytest.mark.parametrize("reopen", [False, True])
+def test_layerless_alpha_survives_adding_layers(
+    mode: str, factory: str, depth: Literal[8, 16, 32], reopen: bool
+) -> None:
+    """Created documents retain their transparency when their first layer is added."""
+    initial = Image.new(mode, (6, 4))
+    if factory == "new":
+        psd = PSDImage.new(mode, initial.size, depth=depth)
+    elif factory == "frompil":
+        psd = PSDImage.frompil(initial)
+    else:
+        psd = PSDImage.fromarray(np.asarray(initial), mode=mode, depth=depth)
+    if reopen:
+        buffer = io.BytesIO()
+        psd.save(buffer)
+        buffer.seek(0)
+        psd = PSDImage.open(buffer)
+
+    # new() sets an opaque compositing backdrop by default.
+    psd.background_color = None
+    alpha = np.tile(np.array([0, 0, 128, 128, 255, 255], dtype=np.uint8), (4, 1))
+    pixels = Image.new(mode, initial.size, 255)
+    pixels.putalpha(Image.fromarray(alpha))
+    psd.create_pixel_layer(pixels, name="alpha")
+    assert has_transparency(psd)
+
+    buffer = io.BytesIO()
+    psd.save(buffer)
+    buffer.seek(0)
+    loaded = PSDImage.open(buffer)
+    expected = alpha.astype(np.float32) / 255
+    np.testing.assert_allclose(loaded.toarray()[:, :, -1], expected, atol=1 / 255)
+    np.testing.assert_allclose(loaded.toarray("shape")[:, :, 0], expected, atol=1 / 255)
+    for force in (False, True):
+        rendered = loaded.composite(force=force)
+        np.testing.assert_allclose(np.asarray(rendered.getchannel("A")), alpha, atol=1)
+
+
+def test_layerless_spot_channel_is_not_promoted_to_transparency() -> None:
+    """Positive alpha identifiers distinguish a stored spot channel from alpha."""
+    psd = PSDImage.new("RGBA", (6, 4), color=(0, 0, 0, 64))
+    psd.image_resources[Resource.ALPHA_IDENTIFIERS] = ImageResource(
+        key=Resource.ALPHA_IDENTIFIERS,
+        data=AlphaIdentifiers([1]),  # type: ignore[arg-type,list-item]
+    )
+    buffer = io.BytesIO()
+    psd.save(buffer)
+    buffer.seek(0)
+    loaded = PSDImage.open(buffer)
+    assert not has_transparency(loaded)
+    loaded.create_pixel_layer(Image.new("RGBA", (6, 4), (255, 0, 0, 128)))
+    assert not has_transparency(loaded)
+    buffer = io.BytesIO()
+    loaded.save(buffer)
+    buffer.seek(0)
+    reopened = PSDImage.open(buffer)
+    assert not has_transparency(reopened)
+    spot = reopened.topil(channel=3)
+    assert spot is not None
+    assert spot.getextrema() == (64, 64)
 
 
 @pytest.mark.parametrize(
@@ -574,6 +650,8 @@ def test_save_with_float_color_rgba(tmp_path: Path) -> None:
     assert len(channels) == 4
     # Alpha channel (index 3) should be all 255 (fully opaque)
     assert all(b == 255 for b in channels[3])
+    assert [ch[0] for ch in channels] == [255, 127, 127, 255]
+    assert [ch[-1] for ch in channels] == [255, 255, 255, 255]
 
 
 def test_composite_preserves_alpha_for_transparent_psd(tmp_path: Path) -> None:
@@ -631,6 +709,9 @@ def test_has_transparency_positive_layer_count(tmp_path: Path) -> None:
     """has_transparency() returns False for a normal PSD without transparency tags."""
     psd = PSDImage.new("RGBA", (16, 16))
     psd.create_pixel_layer(Image.new("RGBA", (16, 16), (255, 0, 0, 255)), name="opaque")
+    li = psd._record.layer_and_mask_information.layer_info
+    assert li is not None
+    li.layer_count = abs(li.layer_count)
     output = tmp_path / "positive_layer_count.psd"
     psd.save(str(output))
 
@@ -719,9 +800,9 @@ def test_the_transparency_flag_survives_an_empty_tree(
     top-level entry passes through empty on an ordinary reorder, and
     ``group.psd`` reaches it with two records still in the file.
 
-    What no code can carry is an emptied document *written to disk* and
-    reopened: the zero count on disk has no sign to restore. That is a format
-    limit, which the changelog records.
+    An emptied document written to disk has no sign to restore on reopening.
+    Its transparency must be recognized from its channels and resources,
+    as covered by the layerless-document tests.
     """
     name = "layers/group.psd" if route == "reorder" else "transparency/fill-opacity.psd"
     psd = PSDImage.open(full_name(name))
@@ -803,6 +884,9 @@ def test_composite_preview_rgb_with_positive_layer_count(tmp_path: Path) -> None
     """Default composite() returns RGB for a normal PSD without transparency."""
     psd = PSDImage.new("RGBA", (16, 16))
     psd.create_pixel_layer(Image.new("RGBA", (16, 16), (255, 0, 0, 255)), name="opaque")
+    li = psd._record.layer_and_mask_information.layer_info
+    assert li is not None
+    li.layer_count = abs(li.layer_count)
     output = tmp_path / "positive_layer_count.psd"
     psd.save(str(output))
 

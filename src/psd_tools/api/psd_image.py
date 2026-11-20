@@ -68,6 +68,7 @@ from psd_tools.api.utils import (
     color_channels,
     denormalize_color,
     get_color_channels,
+    has_transparency,
     normalize_color,
     validate_alloc_budget,
 )
@@ -128,7 +129,9 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         # composite's transparency. The layer count records this as a negative
         # sign, but a count of zero has no sign, so a rebuild that momentarily
         # sees no layers would lose it. See _update_record().
-        self._merged_alpha: bool = False
+        # Layerless documents already describe transparency through their
+        # extra channel and resources, before a layer count can carry it.
+        self._merged_alpha: bool = has_transparency(self)
 
         self._psd = self  # For GroupMixin protocol compatibility.
         self._init()
@@ -416,6 +419,12 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
 
         if self._background_color is not None:
             color, _, alpha = composite(self, color=self._background_color, alpha=1.0)
+            # composite() returns the layers isolated from the backdrop.
+            # The saved preview includes the requested opaque background.
+            color = color * alpha + np.asarray(
+                self._background_color, dtype=np.float32
+            ) * (1.0 - alpha)
+            alpha = np.ones_like(alpha)
         else:
             color, _, alpha = composite(self)
         self._record.image_data.set_data(
