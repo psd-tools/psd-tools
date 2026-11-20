@@ -30,7 +30,7 @@ The :py:class:`GroupMixin` provides iteration, indexing, and search capabilities
 
     # Check if layer is a specific type
     if layer.kind == 'pixel':
-        pixels = layer.numpy()
+        pixels = layer.toarray()
 
 Common layer properties:
 
@@ -46,7 +46,7 @@ Common layer properties:
 Layer operations:
 
 - :py:meth:`~Layer.composite`: Render layer to PIL Image
-- :py:meth:`~Layer.numpy`: Get pixel data as NumPy array
+- :py:meth:`~Layer.toarray`: Get pixel data as NumPy array
 - :py:meth:`~Layer.topil`: Convert to PIL Image
 - :py:meth:`~Layer.has_mask`: Check if layer has a mask
 - :py:meth:`~Layer.has_clip_layers`: Check if layer has clipping mask
@@ -66,7 +66,7 @@ Example usage::
     layer.name = "New Name"
 
     # Get pixel data
-    pixels = layer.numpy()  # NumPy array
+    pixels = layer.toarray()  # NumPy array
     image = layer.topil()   # PIL Image
 
     # Work with groups
@@ -679,17 +679,45 @@ class Layer(LayerProtocol):
             mask_pixels = image.convert("L")
 
         width, height = mask_pixels.size
-        header = self._psd._record.header
-        depth = cast(Literal[1, 8, 16, 32], header.depth)
+        depth = cast(Literal[1, 8, 16, 32], self._psd._record.header.depth)
+        return self._mask_channel_data(
+            pil_io.encode_channel(mask_pixels, depth), width, height, compression
+        )
 
-        channel_data = ChannelData(_compression_for(compression, depth))
-        channel_data.set_data(
-            pil_io.encode_channel(mask_pixels, depth),
+    def _make_mask_channel_data_from_array(
+        self,
+        array: np.ndarray,
+        compression: Compression,
+    ) -> tuple[ChannelData, int, int]:
+        """Return ``(channel_data, width, height)`` for a mask array.
+
+        The array is ``(height, width)`` or ``(height, width, 1)``.
+        """
+        values = numpy_io._unit_values(array)
+        if values.shape[2] != 1:
+            raise ValueError(
+                f"Expected a single-channel mask, got {values.shape[2]} channels"
+            )
+        height, width = values.shape[:2]
+        depth = cast(Literal[1, 8, 16, 32], self._psd._record.header.depth)
+        return self._mask_channel_data(
+            numpy_io._encode_array(values[:, :, 0], depth, width),
             width,
             height,
-            depth,
-            header.version,
+            compression,
         )
+
+    def _mask_channel_data(
+        self,
+        plane: bytes,
+        width: int,
+        height: int,
+        compression: Compression,
+    ) -> tuple[ChannelData, int, int]:
+        header = self._psd._record.header
+        depth = cast(Literal[1, 8, 16, 32], header.depth)
+        channel_data = ChannelData(_compression_for(compression, depth))
+        channel_data.set_data(plane, width, height, depth, header.version)
         return channel_data, width, height
 
     def create_mask(
@@ -714,15 +742,55 @@ class Layer(LayerProtocol):
         :return: The new :py:class:`~psd_tools.api.mask.Mask`.
         :raises ValueError: If the layer already has a mask.
         """
+        self._check_no_mask()
+        channel_data, width, height = self._make_mask_channel_data(image, compression)
+        return self._add_mask(channel_data, width, height, top, left)
+
+    def create_mask_from_array(
+        self,
+        array: np.ndarray,
+        top: int | None = None,
+        left: int | None = None,
+        compression: Compression = Compression.RLE,
+    ) -> Mask:
+        """
+        Create a pixel mask on this layer from an array, at the document's depth.
+
+        Unlike :py:meth:`create_mask`, a 16- or 32-bit document keeps more than
+        8 bits. White (1.0) means fully unmasked, black (0.0) means fully masked.
+
+        :param array: ``(height, width)`` or ``(height, width, 1)`` array;
+            ``float32`` in [0, 1], ``uint8`` or ``uint16``.
+        :param top: Top offset of the mask. Defaults to the layer's top.
+        :param left: Left offset of the mask. Defaults to the layer's left.
+        :param compression: Compression algorithm for the mask data.
+        :return: The new :py:class:`~psd_tools.api.mask.Mask`.
+        :raises TypeError: If the array is not a float, ``uint8`` or ``uint16`` ``numpy.ndarray``.
+        :raises ValueError: If the layer already has a mask, or the array is
+            empty, non-finite, or not a single channel.
+        """
+        self._check_no_mask()
+        channel_data, width, height = self._make_mask_channel_data_from_array(
+            array, compression
+        )
+        return self._add_mask(channel_data, width, height, top, left)
+
+    def _check_no_mask(self) -> None:
         if self.has_mask():
             raise ValueError("Layer already has a mask. Remove it first.")
 
+    def _add_mask(
+        self,
+        channel_data: ChannelData,
+        width: int,
+        height: int,
+        top: int | None,
+        left: int | None,
+    ) -> Mask:
         if top is None:
             top = self._record.top
         if left is None:
             left = self._record.left
-
-        channel_data, width, height = self._make_mask_channel_data(image, compression)
 
         mask_data = MaskData(
             top=top,
@@ -790,11 +858,49 @@ class Layer(LayerProtocol):
         :return: The updated :py:class:`~psd_tools.api.mask.Mask`.
         :raises ValueError: If the layer does not have a mask.
         """
+        self._check_has_mask()
+        channel_data, width, height = self._make_mask_channel_data(image, compression)
+        return self._replace_mask(channel_data, width, height, top, left)
+
+    def update_mask_from_array(
+        self,
+        array: np.ndarray,
+        top: int | None = None,
+        left: int | None = None,
+        compression: Compression = Compression.RLE,
+    ) -> Mask:
+        """
+        Update the pixel mask of this layer from an array, at the document's depth.
+
+        See :py:meth:`create_mask_from_array` for the accepted arrays.
+
+        :param array: New mask array.
+        :param top: New top offset of the mask. Defaults to current mask top.
+        :param left: New left offset of the mask. Defaults to current mask left.
+        :param compression: Compression algorithm for the mask data.
+        :return: The updated :py:class:`~psd_tools.api.mask.Mask`.
+        :raises TypeError: If the array is not a float, ``uint8`` or ``uint16`` ``numpy.ndarray``.
+        :raises ValueError: If the layer does not have a mask, or the array is
+            empty, non-finite, or not a single channel.
+        """
+        self._check_has_mask()
+        channel_data, width, height = self._make_mask_channel_data_from_array(
+            array, compression
+        )
+        return self._replace_mask(channel_data, width, height, top, left)
+
+    def _check_has_mask(self) -> None:
         if not self.has_mask():
             raise ValueError("Layer does not have a mask. Use create_mask() first.")
 
-        channel_data, width, height = self._make_mask_channel_data(image, compression)
-
+    def _replace_mask(
+        self,
+        channel_data: ChannelData,
+        width: int,
+        height: int,
+        top: int | None,
+        left: int | None,
+    ) -> Mask:
         mask_data = cast(MaskData, self._record.mask_data)
         new_top = top if top is not None else mask_data.top
         new_left = left if left is not None else mask_data.left
@@ -1007,17 +1113,23 @@ class Layer(LayerProtocol):
         """
         return pil_io.convert_layer_to_pil(self, channel, apply_icc)
 
-    def numpy(
+    def toarray(
         self, channel: str | None = None, real_mask: bool = True
     ) -> np.ndarray | None:
         """
         Get NumPy array of the layer.
 
+        The inverse of :py:meth:`~psd_tools.api.layers.PixelLayer.fromarray`;
+        :py:meth:`numpy` is an alias.
+
         :param channel: Which channel to return, can be 'color',
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
+        :param real_mask: Whether to use the real mask.
         :return: :py:class:`numpy.ndarray` or None if there is no pixel.
         """
         return numpy_io.get_array(self, channel, real_mask=real_mask)
+
+    numpy = toarray
 
     def composite(
         self,
@@ -3038,8 +3150,8 @@ class PixelLayer(Layer):
         """
         Create a PixelLayer from an array at the document's full precision.
 
-        The inverse of :py:meth:`~psd_tools.api.layers.Layer.numpy`: a layer
-        read back with ``numpy()`` returns the array given here, to the
+        The inverse of :py:meth:`~psd_tools.api.layers.Layer.toarray`: a layer
+        read back with ``toarray()`` returns the array given here, to the
         precision of the document's depth.
 
         :param array: ``(height, width, channels)`` array, or ``(height,
@@ -3062,22 +3174,9 @@ class PixelLayer(Layer):
             non-finite, or of the wrong shape for the document's colour mode,
             or the document is indexed
         """
-        if not isinstance(array, np.ndarray):
-            raise TypeError(f"Expected numpy.ndarray, got {type(array).__name__}")
         if parent is None:
             raise ValueError("Parent cannot be None")
-        if array.dtype.kind == "f":
-            values = array.astype(np.float32)
-            if not np.isfinite(values).all():
-                raise ValueError("Array contains NaN or infinity")
-        elif array.dtype in (np.uint8, np.uint16):
-            values = array.astype(np.float32) / float(np.iinfo(array.dtype).max)
-        else:
-            raise TypeError(f"Unsupported dtype {array.dtype}; use float or uint8/16")
-        if values.ndim == 2:
-            values = values[:, :, np.newaxis]
-        if values.ndim != 3 or values.size == 0:
-            raise ValueError(f"Expected a non-empty 2D or 3D array, got {array.shape}")
+        values = numpy_io._unit_values(array)
 
         psd = parent._psd
         if psd.color_mode == ColorMode.INDEXED:

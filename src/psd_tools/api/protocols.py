@@ -277,11 +277,23 @@ class LayerProtocol(Protocol):
         """
         ...
 
-    def numpy(
+    def toarray(
         self, channel: str | None = None, real_mask: bool = True
     ) -> np.ndarray | None:
         """
         Get NumPy array of the layer.
+
+        :param channel: Which channel to return.
+        :param real_mask: Whether to use real mask.
+        :return: NumPy array.
+        """
+        ...
+
+    def numpy(
+        self, channel: str | None = None, real_mask: bool = True
+    ) -> np.ndarray | None:
+        """
+        Alias of :py:meth:`toarray`.
 
         :param channel: Which channel to return.
         :param real_mask: Whether to use real mask.
@@ -563,11 +575,22 @@ class PSDProtocol(GroupMixinProtocol, Protocol):
         """
         ...
 
-    def numpy(
+    def toarray(
         self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
     ) -> np.ndarray:
         """
         Get NumPy array of the document.
+
+        :param channel: Which channel to return.
+        :return: NumPy array.
+        """
+        ...
+
+    def numpy(
+        self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
+    ) -> np.ndarray:
+        """
+        Alias of :py:meth:`toarray`.
 
         :param channel: Which channel to return.
         :return: NumPy array.

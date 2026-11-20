@@ -682,6 +682,32 @@ def _encode_array(plane: np.ndarray, depth: Literal[1, 8, 16, 32], width: int) -
     raise ValueError(f"Unsupported depth: {depth:g}")
 
 
+def _unit_values(array: np.ndarray) -> np.ndarray:
+    """Return *array* as ``(height, width, channels)`` ``float32`` in [0, 1].
+
+    The input side of :func:`_encode_array`: floats pass through, ``uint8`` and
+    ``uint16`` are scaled by their maximum, and a 2D array gains a channel axis.
+
+    :raises TypeError: if *array* is not a float, ``uint8`` or ``uint16`` ``numpy.ndarray``.
+    :raises ValueError: if it is non-finite, empty, or not 2D or 3D.
+    """
+    if not isinstance(array, np.ndarray):
+        raise TypeError(f"Expected numpy.ndarray, got {type(array).__name__}")
+    if array.dtype.kind == "f":
+        values = array.astype(np.float32)
+        if not np.isfinite(values).all():
+            raise ValueError("Array contains NaN or infinity")
+    elif array.dtype in (np.uint8, np.uint16):
+        values = array.astype(np.float32) / float(np.iinfo(array.dtype).max)
+    else:
+        raise TypeError(f"Unsupported dtype {array.dtype}; use float or uint8/16")
+    if values.ndim == 2:
+        values = values[:, :, np.newaxis]
+    if values.ndim != 3 or values.size == 0:
+        raise ValueError(f"Expected a non-empty 2D or 3D array, got {array.shape}")
+    return values
+
+
 def _stored_planes(
     psdimage: "PSDProtocol", wanted: Collection[int]
 ) -> dict[int, bytes]:
