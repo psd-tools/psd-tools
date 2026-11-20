@@ -82,9 +82,9 @@ A layer moves between groups of one document, and is copied between documents.
   not resolve is left alone. Patterns are not converted to the destination's
   colour mode.
 - Narrowing a 32-bit layer tone-maps, so it matches ``topil()``.
-- Cross-document ``append()``, ``extend()``, ``insert()``, item assignment,
-  ``create_group(layer_list=...)``, ``move_to_group()`` and ``group_layers()``
-  raise ``ValueError`` and leave both documents unchanged.
+- Cross-document ``append()``, ``extend()``, ``insert()``, item assignment
+  and ``create_group(layer_list=...)`` raise ``ValueError`` and leave both documents
+  unchanged.
 
 Property getters
 ----------------

@@ -505,18 +505,6 @@ def test_an_absent_reporting_enum_is_not_fabricated() -> None:
     assert bevel.shadow_mode is BlendMode.MULTIPLY
 
 
-def test_value_is_deprecated_out_loud() -> None:
-    """The deprecation is a warning, not a ``logger.debug`` no user ever sees.
-
-    Nothing in the library reads ``value``, so only a caller's own use trips
-    it (#831).
-    """
-    effect = PSDImage.open(full_name("layer_effects.psd"))[10].effects[0]
-
-    with pytest.warns(DeprecationWarning, match="descriptor"):
-        assert effect.value is effect.descriptor
-
-
 def test_the_documented_edit_recipe_survives_a_save(tmp_path: Path) -> None:
     """The module docstring's editing recipe, run exactly as it is written.
 

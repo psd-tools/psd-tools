@@ -19,7 +19,6 @@ In place, because the view is rebuilt on every access: rebinding
 """
 
 import logging
-import warnings
 from collections.abc import Iterator
 from typing import Any, Protocol
 
@@ -224,19 +223,6 @@ class _Effect(_EffectProtocol):
     def __init__(self, descriptor: Descriptor, image_resources: ImageResources):
         self.descriptor = descriptor
         self._image_resources = image_resources
-
-    @property
-    def value(self) -> Descriptor:
-        """Effect descriptor value.
-
-        .. note:: Deprecated. Use the ``descriptor`` property instead.
-        """
-        warnings.warn(
-            "'value' is deprecated, use the 'descriptor' property instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.descriptor
 
     @property
     def enabled(self) -> bool:

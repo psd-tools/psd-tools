@@ -4,6 +4,12 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [api] **Backwards-incompatible.** Remove the APIs deprecated in 1.27.0:
+  ``Layer.move_to_group()`` (use ``move_to()``), ``Group.group_layers()``
+  (``parent.create_group()``), ``Layer.delete_layer()``
+  (``layer.parent.remove(layer)``), ``Layer.clipping_layer`` (``clipping``) and
+  ``Effect.value`` (``Effect.descriptor``) (#1008)
+
 - [docs] ``PSDImage`` is documented once, under ``psd_tools``; the
   ``psd_tools.api`` page is now an overview that links to it. The package-level
   warnings are documented there too (#1115)

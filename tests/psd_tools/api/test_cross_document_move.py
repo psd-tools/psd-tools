@@ -24,8 +24,6 @@ _OPERATIONS: dict[str, Callable[[PSDImage, Layer], object]] = {
     "insert": lambda dest, layer: dest.insert(0, layer),
     "setitem": lambda dest, layer: dest.__setitem__(0, layer),
     "create_group": lambda dest, layer: dest.create_group([layer]),
-    "move_to_group": lambda dest, layer: layer.move_to_group(dest),
-    "group_layers": lambda dest, layer: Group.group_layers(dest, [layer]),
 }
 
 
@@ -43,16 +41,11 @@ def test_a_cross_document_move_raises_and_changes_nothing(operation: str) -> Non
     assert layer.parent is source
 
 
-@pytest.mark.parametrize("operation", ["create_group", "group_layers"])
-def test_a_non_layer_item_raises_type_error(operation: str) -> None:
+def test_a_non_layer_item_raises_type_error() -> None:
     dest, _ = _documents()
-    add = {
-        "create_group": lambda: dest.create_group([1]),  # type: ignore[list-item]
-        "group_layers": lambda: Group.group_layers(dest, [1]),  # type: ignore[list-item]
-    }[operation]
 
     with pytest.raises(TypeError):
-        add()
+        dest.create_group([1])  # type: ignore[list-item]
 
 
 def test_a_nested_cross_document_layer_raises() -> None:
