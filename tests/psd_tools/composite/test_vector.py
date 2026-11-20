@@ -1298,6 +1298,30 @@ def test_the_solid_inner_band_does_not_double_a_slanted_corner(
     assert band[48, 32, 0] == pytest.approx(width + 1.0 - 2.0)
 
 
+def test_a_curved_inner_ridge_does_not_take_the_full_doubled_share(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("scipy.ndimage")
+    viewport = (0, 0, 100, 150)
+    monkeypatch.setattr(sys.modules[__name__], "_OUTER", viewport)
+    psd, layer = _nested_component(True)
+    layer.origination.clear()
+    assert layer.bbox == viewport
+
+    def two_holes(layer: Layer, **kwargs: Any) -> np.ndarray:
+        left, top, right, bottom = kwargs["viewport"]
+        y, x = np.ogrid[top:bottom, left:right]
+        outside = (
+            np.minimum((x - 23.92) ** 2, (x - 76.08) ** 2) + (y - 40) ** 2
+        ) <= 100
+        return (~outside)[:, :, None].astype(np.float64)
+
+    monkeypatch.setattr(vector, "_draw_path", two_holes)
+    blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
+    band = vector._solid_inner_band(layer, blank, 32.08, viewport)
+    assert band[73, 50, 0] == pytest.approx(0.914, abs=0.02)
+
+
 def test_the_solid_inner_band_does_not_depend_on_the_viewport() -> None:
     """A crop is the same crop of the full render, edge pixels included (#890)."""
     pytest.importorskip("scipy.ndimage")
