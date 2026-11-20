@@ -4,6 +4,9 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [fix] Adding layers to a layerless RGBA or LA document retains its merged
+  transparency, including after saving and reopening the empty document (#1120)
+
 - [fix] A tagged block parser that fails with any exception now falls back to the raw
   bytes instead of aborting ``PSDImage.open()``; layer-structure blocks still raise (#1112)
 
