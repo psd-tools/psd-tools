@@ -238,6 +238,79 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         return psdimage
 
     @classmethod
+    def fromarray(
+        cls,
+        array: np.ndarray,
+        mode: str | None = None,
+        depth: Literal[1, 8, 16, 32] | None = None,
+        compression: Compression = Compression.RLE,
+        color: ColorInput | None = None,
+    ) -> Self:
+        """
+        Create a new layer-less PSD document from a NumPy array.
+
+        The inverse of :py:meth:`toarray`: the array is stored at the
+        document's depth, in the convention ``toarray()`` returns, so a CMYK
+        array holds 255 for no ink. In RGB and grayscale modes with a
+        transparency channel the colour is stored composited over white, as in
+        the merged preview, so colour under transparent pixels does not
+        survive ``toarray()``.
+
+        :param array: ``(height, width, channels)`` array, or ``(height,
+            width)`` for a single channel. ``channels`` is the mode's colour
+            channel count, with one more for transparency when ``mode`` ends
+            in ``A``. Floating point values are in [0, 1]; ``uint8`` and
+            ``uint16`` are scaled by their maximum.
+        :param mode: PIL-style mode such as ``"RGB"``, ``"RGBA"`` or
+            ``"CMYK"``. Defaults to ``"L"``, ``"RGB"`` or ``"RGBA"`` by
+            channel count.
+        :param depth: Bit depth. Defaults to 1 for mode ``"1"``, otherwise 8
+            for ``uint8``, 16 for ``uint16`` and 32 for floating point.
+        :param compression: ImageData compression option.
+        :param color: Background color, as in :py:meth:`frompil`.
+        :return: A :py:class:`~psd_tools.PSDImage` object.
+        :raises TypeError: If the array is not a float, ``uint8`` or ``uint16`` ``numpy.ndarray``.
+        :raises ValueError: If the array is empty, non-finite, or of the
+            wrong shape for the mode, or the mode is indexed.
+        """
+        values = numpy_io._unit_values(array)
+        height, width, channels = values.shape
+        if mode is None:
+            mode = {1: "L", 3: "RGB", 4: "RGBA"}.get(channels, "")
+            if not mode:
+                raise ValueError(f"Cannot infer a mode from {channels} channels")
+        if depth is None:
+            if mode.upper() == "1":
+                depth = 1
+            else:
+                depth = {np.dtype(np.uint8): 8, np.dtype(np.uint16): 16}.get(
+                    array.dtype, 32
+                )  # type: ignore[assignment]
+        header = cls._make_header(mode, (width, height), depth)
+        if header.color_mode == ColorMode.INDEXED:
+            raise ValueError("An indexed document stores palette indices, not colors")
+        if channels != header.channels:
+            raise ValueError(
+                f"Expected {header.channels} channels for mode {mode}, got {channels}"
+            )
+        psdimage = cls(PSD(header=header, image_resources=ImageResources.new()))
+        psdimage._record.color_mode_data = ColorModeData(
+            HDRT_DEFAULT if header.depth == 32 else b""
+        )
+        planes_count = get_color_channels(psdimage)
+        planes = numpy_io.encode_image_data(
+            psdimage, values[:, :, :planes_count], values[:, :, planes_count:]
+        )
+        image_data = ImageData(
+            compression=layers._compression_for(compression, header.depth)
+        )
+        image_data.set_data(planes, header)
+        psdimage._record.image_data = image_data
+        if color is not None:
+            psdimage.background_color = color
+        return psdimage
+
+    @classmethod
     def open(
         cls,
         fp: IO[bytes] | str | bytes | os.PathLike,
@@ -367,11 +440,13 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             return pil_io.convert_image_data_to_pil(self, channel, apply_icc)
         return None
 
-    def numpy(
+    def toarray(
         self, channel: Literal["color", "shape", "alpha", "mask"] | None = None
     ) -> np.ndarray:
         """
-        Get NumPy array of the layer.
+        Get NumPy array of the document.
+
+        The inverse of :py:meth:`fromarray`; :py:meth:`numpy` is an alias.
 
         :param channel: Which channel to return, can be 'color',
             'shape', 'alpha', or 'mask'. Default is 'color+alpha'.
@@ -380,6 +455,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         array = numpy_io.get_array(self, channel)
         assert array is not None
         return array
+
+    numpy = toarray
 
     def composite(
         self,

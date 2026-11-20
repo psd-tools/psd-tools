@@ -4,6 +4,11 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [api] Add ``toarray()`` on ``PSDImage`` and layers (``numpy()`` stays as an alias),
+  ``PSDImage.fromarray()``, ``Layer.create_mask_from_array()`` and
+  ``Layer.update_mask_from_array()``, the array counterparts of the PIL entry points
+  (#995)
+
 - [api] **Backwards-incompatible.** Remove the APIs deprecated in 1.27.0:
   ``Layer.move_to_group()`` (use ``move_to()``), ``Group.group_layers()``
   (``parent.create_group()``), ``Layer.delete_layer()``

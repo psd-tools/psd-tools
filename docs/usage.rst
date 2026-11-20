@@ -378,7 +378,11 @@ Exporting data to NumPy
 -----------------------
 
 PSDImage or layers can be exported to NumPy array by
-:py:meth:`~psd_tools.api.layers.PixelLayer.numpy` method::
+:py:meth:`~psd_tools.api.layers.PixelLayer.toarray` method, and built back with
+:py:meth:`~psd_tools.PSDImage.fromarray`, :py:meth:`~psd_tools.api.layers.PixelLayer.fromarray`
+and ``create_mask_from_array()``::
 
-    image = psd.numpy()
-    layer_image = layer.numpy()
+    image = psd.toarray()
+    layer_image = layer.toarray()
+
+``numpy()`` is an alias of ``toarray()``.
