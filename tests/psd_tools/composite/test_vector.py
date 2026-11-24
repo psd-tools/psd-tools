@@ -1319,6 +1319,7 @@ def test_a_curved_inner_ridge_does_not_take_the_full_doubled_share(
     monkeypatch.setattr(vector, "_draw_path", two_holes)
     blank = np.zeros((psd.height, psd.width, 1), dtype=np.float32)
     band = vector._solid_inner_band(layer, blank, 32.08, viewport)
+    # 0.914 is hand-derived in #957, not measured from a Photoshop-authored fixture.
     assert band[73, 50, 0] == pytest.approx(0.914, abs=0.02)
 
 
