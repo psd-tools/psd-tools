@@ -243,16 +243,35 @@ def _solid_inner_band(
     # A pixel whose centre is ``d`` from the nearest outside centre spans
     # depths ``d - 1`` to ``d``, so the band covers all of it up to ``d == width``
     # and a falling share beyond. On a ridge, where opposing boundaries meet,
-    # depth peaks at the centre and falls to ``d - 1`` at the edges, so the
-    # pixel spans only ``d - 1`` to ``d - 0.5`` and fills twice as fast.
+    # each neighbour a full step shallower contributes the straight share.
+    # A smaller drop along a curved boundary contributes less.
     d = distance[1:-1, 1:-1]
     # A weak maximum is a slanted corner, not a ridge, and keeps the pen's coverage.
     gap = d - _RIDGE_DROP
-    ridge = ((gap >= distance[:-2, 1:-1]) & (gap >= distance[2:, 1:-1])) | (
-        (gap >= distance[1:-1, :-2]) & (gap >= distance[1:-1, 2:])
-    )
-    share = width + 1.0 - d
-    solid = np.clip(np.where(ridge, 2.0 * share, share), 0.0, 1.0)[:, :, None]
+    # Reused scratch buffers keep the peak near that of the straight share.
+    ridge_share = np.full_like(d, -1.0)
+    fronts = np.empty_like(d)
+    back = np.empty_like(d)
+    ridge = np.empty(d.shape, dtype=bool)
+    other = np.empty(d.shape, dtype=bool)
+    for first, second in (
+        (distance[:-2, 1:-1], distance[2:, 1:-1]),
+        (distance[1:-1, :-2], distance[1:-1, 2:]),
+    ):
+        np.greater_equal(gap, first, out=ridge)
+        np.greater_equal(gap, second, out=other)
+        ridge &= other
+        np.subtract(width, first, out=fronts)
+        np.clip(fronts, 0.0, 1.0, out=fronts)
+        np.subtract(width, second, out=back)
+        np.clip(back, 0.0, 1.0, out=back)
+        fronts += back
+        np.maximum(ridge_share, fronts, out=ridge_share, where=ridge)
+    del gap, back, ridge, other
+    share = np.subtract(width + 1.0, d, out=fronts)
+    np.copyto(share, ridge_share, where=ridge_share >= 0)
+    del ridge_share
+    solid = np.clip(share, 0.0, 1.0, out=share)[:, :, None]
     if near is not None:
         solid = (
             solid
