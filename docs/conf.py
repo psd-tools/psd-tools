@@ -42,6 +42,13 @@ intersphinx_mapping = {
     "PIL": ("https://pillow.readthedocs.io/en/stable/", None),
 }
 
+# The private base of every effect class, named by Effects.items and
+# Effects.find. Autodoc skips it, so those references cannot resolve (#1082).
+nitpick_ignore = [
+    ("py:class", "_Effect"),
+    ("py:class", "psd_tools.api.effects._Effect"),
+]
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
