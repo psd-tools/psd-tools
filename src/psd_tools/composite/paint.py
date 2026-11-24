@@ -247,8 +247,11 @@ def create_fill_desc(
 def _check_gradient_size(layer: "Layer", viewport: tuple[int, int, int, int]) -> None:
     """Raise :class:`ValueError` when a gradient drawn on ``viewport`` is over budget."""
     width, height = viewport[2] - viewport[0], viewport[3] - viewport[1]
+    # An empty axis still builds a ramp along the other, so that one is bounded.
     if width < 1 or height < 1:
-        return
+        width, height = max(width, height, 0), 1
+        if width < 1:
+            return
     check_pixel_size(
         width,
         height,

@@ -411,3 +411,13 @@ def test_a_vertical_gradient_overlay_is_checked_at_its_layer_box() -> None:
     psd._max_alloc_bytes = fill - 1
     with pytest.raises(ValueError, match="over the configured budget"):
         paint.draw_gradient_overlay(layer, desc)
+
+
+@pytest.mark.parametrize("viewport", [(0, 0, 10**8, 0), (0, 0, 0, 10**8)])
+def test_a_gradient_viewport_with_one_empty_axis_is_bounded_along_the_other(
+    viewport: tuple[int, int, int, int],
+) -> None:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    with pytest.raises(ValueError, match="per axis"):
+        paint._check_gradient_size(psd[0], viewport)
+    paint._check_gradient_size(psd[0], (0, 0, 0, 0))
