@@ -397,3 +397,17 @@ def test_a_gradient_fill_wider_than_the_format_allows_is_rejected(
     )
     with pytest.raises(ValueError, match="per axis"):
         layer.composite(force=True)
+
+
+def test_a_vertical_gradient_overlay_is_checked_at_its_layer_box() -> None:
+    psd = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
+    layer = psd[0]
+    desc = next(iter(layer.effects)).descriptor
+    assert paint._vertical_overlay_geometry(layer, desc) is not None
+    fill = layer.width * layer.height * paint.GRADIENT_FILL_BYTES
+
+    psd._max_alloc_bytes = fill
+    paint.draw_gradient_overlay(layer, desc)
+    psd._max_alloc_bytes = fill - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        paint.draw_gradient_overlay(layer, desc)
