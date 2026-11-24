@@ -373,3 +373,61 @@ def test_a_viewport_with_one_empty_axis_allocates_nothing_along_the_other(
     assert color is not None and color.size == 0
     assert color.shape == (viewport[3], viewport[2], color.shape[2])
     assert peak < 1_000_000
+
+
+def test_a_gradient_fill_is_checked_at_its_layer_box() -> None:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    layer = psd[0]
+    fill = layer.width * layer.height * paint.GRADIENT_FILL_BYTES
+
+    psd._max_alloc_bytes = fill
+    layer.composite(force=True)
+    psd._max_alloc_bytes = fill - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        layer.composite(force=True)
+
+
+def test_a_gradient_fill_wider_than_the_format_allows_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    layer = psd[0]
+    monkeypatch.setattr(
+        type(layer), "bbox", property(lambda _: (-(2**30), 0, 2**30, 4))
+    )
+    with pytest.raises(ValueError, match="per axis"):
+        layer.composite(force=True)
+
+
+def test_a_vertical_gradient_overlay_is_checked_at_its_layer_box() -> None:
+    psd = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
+    layer = psd[0]
+    desc = next(iter(layer.effects)).descriptor
+    assert paint._vertical_overlay_geometry(layer, desc) is not None
+    fill = layer.width * layer.height * paint.GRADIENT_FILL_BYTES
+
+    psd._max_alloc_bytes = fill
+    paint.draw_gradient_overlay(layer, desc)
+    psd._max_alloc_bytes = fill - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        paint.draw_gradient_overlay(layer, desc)
+
+
+@pytest.mark.parametrize("viewport", [(0, 0, 10**8, 0), (0, 0, 0, 10**8)])
+def test_a_gradient_viewport_with_one_empty_axis_is_bounded_along_the_other(
+    viewport: tuple[int, int, int, int],
+) -> None:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    with pytest.raises(ValueError, match="per axis"):
+        paint._check_gradient_size(psd[0], viewport)
+    paint._check_gradient_size(psd[0], (0, 0, 0, 0))
+
+
+def test_a_stroke_gradient_on_a_one_pixel_high_box_is_bounded_along_its_width() -> None:
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = next(x for x in psd if x.name == "Shape 1")
+    assert layer.stroke is not None
+    content = layer.stroke._data[b"strokeStyleContent"]
+    assert content.classID == b"gradientLayer"
+    with pytest.raises(ValueError, match="per axis"):
+        paint.create_fill_desc(layer, content, (0, 0, 10**8, 0))
