@@ -249,6 +249,8 @@ def get_image_data(psdimage: "PSDProtocol", channel: str | None) -> np.ndarray:
         array = array.reshape((-1, psdimage.height, psdimage.width)).transpose(
             (1, 2, 0)
         )
+        if array.shape[2] < psdimage.channels:
+            raise ValueError("not enough image data")
     array = _remove_background(array, psdimage)
 
     if channel == "shape":
