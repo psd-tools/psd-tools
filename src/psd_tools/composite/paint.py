@@ -475,22 +475,23 @@ def draw_pattern_fill(
 def _vertical_overlay_geometry(
     layer: "Layer", desc: Descriptor
 ) -> tuple[float, float, bool] | None:
-    """Integer endpoints for aligned RGB8 Classic vertical overlays."""
+    """Integer endpoints for aligned RGB8 Classic or Smooth vertical overlays."""
     if (
         layer._psd.color_mode != ColorMode.RGB
         or layer._psd.depth != 8
         or layer.kind not in ("pixel", "shape")
         or desc.get(Key.Type).enum != Enum.Linear
         or desc.get(b"gs99") is None
-        or desc[b"gs99"].enum != b"Gcls"
+        or desc[b"gs99"].enum not in (b"Gcls", b"Smoo")
         or not bool(desc.get(b"Algn", True))
         or bool(desc.get(b"Dthr", False))
     ):
         return None
     gradient = desc[Key.Gradient]
+    smoothness = float(gradient.get(b"Intr", 4096))
     if (
         gradient[Type.GradientForm].enum != Enum.CustomStops
-        or float(gradient.get(b"Intr", 4096)) != 0
+        or smoothness not in (0, 4096)
         or any(
             float(stop.get(Key.Midpoint, 50)) != 50
             for key in (Key.Colors, Key.Transparency)
@@ -527,6 +528,12 @@ def _vertical_overlay_geometry(
     offset = desc.get(b"Ofst", {})
     horizontal = float(offset.get(b"Hrzn", 0))
     vertical = float(offset.get(b"Vrtc", 0))
+    # Smooth interpolation remains approximate; its geometry is verified only
+    # without offsets. Keep Classic zero-smoothness offset support unchanged.
+    if (desc[b"gs99"].enum != b"Gcls" or smoothness != 0) and (
+        horizontal != 0 or vertical != 0
+    ):
+        return None
     length = height * scale
     start = height * (1 - scale) / 2 + height * vertical / 100
     # Fractional endpoints require Photoshop's separate quantization rules.
