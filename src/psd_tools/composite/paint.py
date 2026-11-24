@@ -244,6 +244,21 @@ def create_fill_desc(
     return None, None
 
 
+def _check_gradient_size(layer: "Layer", viewport: tuple[int, int, int, int]) -> None:
+    """Raise :class:`ValueError` when a gradient drawn on ``viewport`` is over budget."""
+    width, height = viewport[2] - viewport[0], viewport[3] - viewport[1]
+    if width < 1 or height < 1:
+        return
+    check_pixel_size(
+        width,
+        height,
+        max_alloc_bytes=layer._psd._max_alloc_bytes,
+        estimated_bytes=width * height * GRADIENT_FILL_BYTES,
+        warn=False,
+        max_dimension=dimension_limit(layer._psd.version),
+    )
+
+
 def create_fill(
     layer: "Layer",
     viewport: tuple[int, int, int, int],
@@ -259,6 +274,7 @@ def create_fill(
             viewport, layer._psd, desc, _pattern_anchor(layer, desc)
         )
     if (desc := blocks.get_data(Tag.GRADIENT_FILL_SETTING)) is not None:
+        _check_gradient_size(layer, viewport)
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if (desc := blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)) is not None:
         if Key.Color in desc:
@@ -268,6 +284,7 @@ def create_fill(
                 viewport, layer._psd, desc, _pattern_anchor(layer, desc)
             )
         elif Key.Gradient in desc:
+            _check_gradient_size(layer, viewport)
             return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
 
@@ -531,6 +548,7 @@ def draw_gradient_overlay(
     except (AttributeError, KeyError, TypeError, ValueError):
         geometry = None
     if geometry is None:
+        _check_gradient_size(layer, layer.bbox)
         return draw_gradient_fill(layer.bbox, layer._psd.color_mode, desc)
     start, length, descending = geometry
     coordinates = np.arange(layer.top, layer.bottom, dtype=np.float64)

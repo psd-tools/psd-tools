@@ -4,6 +4,9 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [fix] A gradient fill layer with a forged bbox now raises ``ValueError`` over
+  ``max_alloc_bytes`` instead of allocating until the process is killed (#1129)
+
 - [fix] A tagged block parser that fails with any exception now falls back to the raw
   bytes instead of aborting ``PSDImage.open()``; layer-structure blocks still raise (#1112)
 

@@ -373,3 +373,27 @@ def test_a_viewport_with_one_empty_axis_allocates_nothing_along_the_other(
     assert color is not None and color.size == 0
     assert color.shape == (viewport[3], viewport[2], color.shape[2])
     assert peak < 1_000_000
+
+
+def test_a_gradient_fill_is_checked_at_its_layer_box() -> None:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    layer = psd[0]
+    fill = layer.width * layer.height * paint.GRADIENT_FILL_BYTES
+
+    psd._max_alloc_bytes = fill
+    layer.composite(force=True)
+    psd._max_alloc_bytes = fill - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        layer.composite(force=True)
+
+
+def test_a_gradient_fill_wider_than_the_format_allows_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    layer = psd[0]
+    monkeypatch.setattr(
+        type(layer), "bbox", property(lambda _: (-(2**30), 0, 2**30, 4))
+    )
+    with pytest.raises(ValueError, match="per axis"):
+        layer.composite(force=True)
