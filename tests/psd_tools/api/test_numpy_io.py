@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import tracemalloc
@@ -322,6 +323,19 @@ def test_a_short_color_table_is_a_value_error(size: int) -> None:
 
     for read in (psd.numpy, psd.topil, psd.composite):
         with pytest.raises(ValueError, match="Color table"):
+            read()
+
+
+@pytest.mark.composite
+def test_a_truncated_image_section_is_a_value_error() -> None:
+    """Merged image data short of one plane per channel is rejected, not read as zero channels."""
+    path = full_name("colormodes/20x5_1bit_bitmap.psd")
+    with open(path, "rb") as f:
+        data = f.read()[:18541]
+    psd = PSDImage.open(io.BytesIO(data))
+
+    for read in (psd.numpy, psd.topil, lambda: psd.composite(force=True)):
+        with pytest.raises(ValueError, match="not enough image data"):
             read()
 
 

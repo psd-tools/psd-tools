@@ -4,6 +4,9 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [fix] A file truncated inside the merged image data now raises ``ValueError`` from
+  ``numpy()`` and ``composite()`` instead of ``IndexError`` (#1123)
+
 - [fix] A gradient fill layer with a forged bbox now raises ``ValueError`` over
   ``max_alloc_bytes`` instead of allocating until the process is killed. A very large
   gradient layer, over about 33 megapixels at the default budget, now needs a higher
