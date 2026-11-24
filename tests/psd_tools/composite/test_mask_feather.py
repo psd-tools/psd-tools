@@ -162,3 +162,26 @@ def test_viewport_beside_a_feathered_fill_still_shows_its_bleed(
     )
     left, top, right, bottom = viewport
     np.testing.assert_allclose(part, whole[top:bottom, left:right], atol=1, rtol=0)
+
+
+def test_combined_mask_is_classified_the_same_in_a_crop() -> None:
+    psd = PSDImage.open(full_name("masks/mask-feather-user-21-vector-10.psd"))
+    whole = np.asarray(psd.composite(force=True, ignore_preview=True).convert("RGB"))
+    part = np.asarray(
+        psd.composite(
+            viewport=(90, 65, 130, 105), force=True, ignore_preview=True
+        ).convert("RGB")
+    )
+    np.testing.assert_array_equal(part, whole[65:105, 90:130])
+
+
+def test_mask_beyond_the_canvas_does_not_clamp_its_feather_away() -> None:
+    psd = PSDImage.open(full_name("masks/mask-feather-21.psd"))
+    layer = next(layer for layer in psd.descendants() if layer.mask is not None)
+    mask = layer.mask
+    assert mask is not None
+    mask._data.left, mask._data.right = -30, -10
+    mask._data.top, mask._data.bottom = 100, 120
+    rendered = psd.composite(force=True, ignore_preview=True).convert("RGB")
+    red = np.asarray(rendered, dtype=float)[:, :, 0]
+    assert red[110, 0] > 0

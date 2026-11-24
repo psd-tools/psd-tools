@@ -14,9 +14,9 @@ import numpy as np
 # Photoshop's own limit on the Feather property.
 MAX_FEATHER = 1000.0
 
-# Per working pixel: the float64 cumulative sum, the two interpolated window
-# ends, the pass output and the vector mask drawn beside them.
-BLUR_BYTES = 56
+# Per grown pixel: the float64 area and cumulative sum, the interpolated window
+# ends and their differences, and the vector mask drawn beside them.
+BLUR_BYTES = 72
 
 Box = tuple[int, int, int, int]
 

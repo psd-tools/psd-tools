@@ -1481,6 +1481,7 @@ class Compositor:
         self._layer_filter = layer_filter
         self._force = force
         self._mask_repeats: dict[int, bool] = {}
+        self._vector_stored: dict[int, bool] = {}
         self._stored_fallback: set[int] = set()
         # How a one-channel array becomes this compositor's width. Carried
         # rather than derived because the four sites that need it below are
@@ -2273,10 +2274,17 @@ class Compositor:
         """
         color, own_shape = self._read_object(layer)
         if color is not None and color.size and self._fill_reaches_feather(layer):
-            shape = np.ones((self.height, self.width, 1), dtype=np.float32)
-            color = np.broadcast_to(
-                color[:1, :1], (self.height, self.width, color.shape[2])
-            ).copy()
+            shape = np.zeros((self.height, self.width, 1), dtype=np.float32)
+            colour = np.zeros((self.height, self.width, color.shape[2]), np.float32)
+            left, top, right, bottom = utils.intersect(
+                self._viewport, _feather_reach(layer)
+            )
+            if right > left:
+                rows = slice(top - self._viewport[1], bottom - self._viewport[1])
+                columns = slice(left - self._viewport[0], right - self._viewport[0])
+                shape[rows, columns] = 1.0
+                colour[rows, columns] = color[0, 0]
+            color = colour
         else:
             shape = self._place_object_shape(
                 color, own_shape, layer.bbox, self._viewport
@@ -2451,6 +2459,37 @@ class Compositor:
             user = 0.0
         return user, vector_feather
 
+    def _feather_domain(self, layer: Layer) -> tuple[int, int, int, int] | None:
+        """The canvas, for a mask that meets it; its edge pixel continues past it."""
+        assert layer.mask is not None
+        canvas = (0, 0, layer._psd.width, layer._psd.height)
+        if utils.intersect(canvas, layer.mask.bbox) == (0, 0, 0, 0):
+            return None
+        return canvas
+
+    def _mask_is_vector(self, layer: Layer) -> bool:
+        """Whether the stored mask is the vector path alone, over the canvas."""
+        known = self._vector_stored.get(id(layer))
+        if known is None:
+            assert layer.mask is not None
+            canvas = (0, 0, layer._psd.width, layer._psd.height)
+            self._feather_check(layer)(canvas[2], canvas[3])
+            stored = layer.numpy("mask", real_mask=False)
+            known = stored is not None and bool(
+                np.abs(
+                    paste(
+                        canvas,
+                        layer.mask.bbox,
+                        stored,
+                        layer.mask.background_color / 255.0,
+                    )
+                    - vector.draw_vector_mask(layer, canvas)
+                ).max()
+                <= _VECTOR_MATCH
+            )
+            self._vector_stored[id(layer)] = known
+        return known
+
     def _feather_check(self, layer: Layer) -> Callable[[int, int], None]:
         """The allocation guard for a feather blur's working arrays."""
 
@@ -2507,20 +2546,7 @@ class Compositor:
             check(vector_box[2] - vector_box[0], vector_box[3] - vector_box[1])
             vector_drawn = vector.draw_vector_mask(layer, vector_box)
             if layer.mask.flags.user_mask_from_render:
-                stored = layer.numpy("mask", real_mask=False)
-                stored_is_vector = bool(
-                    stored is not None
-                    and np.abs(
-                        paste(
-                            vector_box,
-                            layer.mask.bbox,
-                            stored,
-                            layer.mask.background_color / 255.0,
-                        )
-                        - vector_drawn
-                    ).max()
-                    <= _VECTOR_MATCH
-                )
+                stored_is_vector = self._mask_is_vector(layer)
                 if not stored_is_vector:
                     vector_feather = 0.0
                     vector_drawn = None
@@ -2539,7 +2565,7 @@ class Compositor:
                         mask,
                         layer.mask.background_color / 255.0,
                         user_feather,
-                        domain=(0, 0, layer._psd.width, layer._psd.height),
+                        domain=self._feather_domain(layer),
                         check=self._feather_check(layer),
                     )
                 else:
