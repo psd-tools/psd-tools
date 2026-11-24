@@ -421,3 +421,13 @@ def test_a_gradient_viewport_with_one_empty_axis_is_bounded_along_the_other(
     with pytest.raises(ValueError, match="per axis"):
         paint._check_gradient_size(psd[0], viewport)
     paint._check_gradient_size(psd[0], (0, 0, 0, 0))
+
+
+def test_a_stroke_gradient_on_a_one_pixel_high_box_is_bounded_along_its_width() -> None:
+    psd = PSDImage.open(full_name("stroke.psd"))
+    layer = next(x for x in psd if x.name == "Shape 1")
+    assert layer.stroke is not None
+    content = layer.stroke._data[b"strokeStyleContent"]
+    assert content.classID == b"gradientLayer"
+    with pytest.raises(ValueError, match="per axis"):
+        paint.create_fill_desc(layer, content, (0, 0, 10**8, 0))

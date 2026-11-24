@@ -240,6 +240,7 @@ def create_fill_desc(
     if desc.classID == b"patternLayer":
         return draw_pattern_fill(viewport, layer._psd, desc, anchor)
     if desc.classID == b"gradientLayer":
+        _check_gradient_size(layer, viewport)
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc, anchor)
     return None, None
 
