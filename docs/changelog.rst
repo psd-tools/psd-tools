@@ -4,6 +4,10 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [fix] ``composite()`` now renders a layer mask's Feather. A layer with both a user and
+  a vector mask, a vector mask over a fill, or a mask read from a real channel still
+  renders unfeathered (#326)
+
 - [fix] A document with fewer merged-image planes than its header declares, such as a
   truncated bitmap, now raises ``ValueError`` from ``numpy()`` and ``composite()``
   instead of ``IndexError`` (#1123)

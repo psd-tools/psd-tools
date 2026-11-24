@@ -27,7 +27,7 @@ from psd_tools.api.utils import (
     dimension_limit,
     get_color_channels,
 )
-from psd_tools.composite import paint, utils, vector
+from psd_tools.composite import feather, paint, utils, vector
 from psd_tools.composite.adjustments import ADJUSTMENT_FUNC
 from psd_tools.composite.blend import get_blend_func, normal
 from psd_tools.composite.effects import (
@@ -74,6 +74,10 @@ class _StyledEffect(Protocol):
 def _styled(effects: Iterator[Any]) -> Iterator[_StyledEffect]:
     return cast(Iterator[_StyledEffect], effects)
 
+
+# The most a rendered mask may differ from its vector path, in coverage, and
+# still be taken for that path.
+_VECTOR_MATCH = 0.1
 
 # How many times the larger of the viewport and the layer a vector stroke's
 # fill may grow to, past the floor check_growth() allows.
@@ -392,6 +396,30 @@ def _shadow_reach(
     return bbox
 
 
+def _feather_reach(layer: Layer) -> tuple[int, int, int, int]:
+    """``layer.bbox`` grown by the feather of a solid fill's mask.
+
+    Wider than what is drawn when the mask is a real channel the compositor
+    leaves unblurred, which is the safe direction for a cull or a group canvas.
+    """
+    bbox = layer.bbox
+    mask = layer.mask
+    if (
+        not isinstance(layer, FillLayer)
+        or layer.kind != "solidcolorfill"
+        or layer.vector_mask is not None
+        or mask is None
+        or mask.disabled
+        or mask.parameters is None
+        or bbox[0] >= bbox[2]
+        or bbox[1] >= bbox[3]
+    ):
+        return bbox
+    return feather.grown_viewport(
+        bbox, feather.feather_radius(mask.parameters.user_mask_feather)
+    )
+
+
 def _effect_reach(
     layer: Layer, memo: "_ContentBBoxes | None" = None
 ) -> tuple[int, int, int, int]:
@@ -402,7 +430,10 @@ def _effect_reach(
     shadow loses it as surely as one that clips its stroke, and a layer whose
     own box has cleared the viewport can still cast a shadow back into it.
     """
-    return utils.union_bbox(_stroke_reach(layer), _shadow_reach(layer, memo))
+    return utils.union_bbox(
+        utils.union_bbox(_stroke_reach(layer), _shadow_reach(layer, memo)),
+        _feather_reach(layer),
+    )
 
 
 _ContentBBoxes = dict[int, tuple[int, int, int, int]]
@@ -2241,12 +2272,19 @@ class Compositor:
         vector mask, which a centred or outer stroke reaches past.
         """
         color, own_shape = self._read_object(layer)
-        shape = self._place_object_shape(color, own_shape, layer.bbox, self._viewport)
-
-        if color is None:
-            color = np.ones((self.height, self.width, 1), dtype=np.float32)
+        if color is not None and color.size and self._fill_reaches_feather(layer):
+            shape = np.ones((self.height, self.width, 1), dtype=np.float32)
+            color = np.broadcast_to(
+                color[:1, :1], (self.height, self.width, color.shape[2])
+            ).copy()
         else:
-            color = paste(self._viewport, layer.bbox, color, 1.0)
+            shape = self._place_object_shape(
+                color, own_shape, layer.bbox, self._viewport
+            )
+            if color is None:
+                color = np.ones((self.height, self.width, 1), dtype=np.float32)
+            else:
+                color = paste(self._viewport, layer.bbox, color, 1.0)
 
         alpha = shape * 1.0  # Constant factor is always 1.
         fill_off = utils.is_fill_disabled(layer)
@@ -2353,6 +2391,7 @@ class Compositor:
             or self._redraws(layer)
             or mask.real_flags is not None
             or mask.bbox != layer.bbox
+            or any(self._mask_feathers(layer))
         ):
             return False
         if mask.parameters and any(
@@ -2376,6 +2415,58 @@ class Compositor:
             and bool(np.array_equal(shape, stored))
         )
 
+    def _fill_reaches_feather(self, layer: Layer) -> bool:
+        """Whether a solid fill is to cover what its feathered mask bleeds onto.
+
+        The stored box of a solid fill is only as large as the mask it was made
+        with, and the fill itself has no edge: a mask blurred past that box
+        shows the colour there. Other fills lay their geometry out across
+        their box, so they keep it.
+        """
+        return (
+            isinstance(layer, FillLayer)
+            and layer.kind == "solidcolorfill"
+            and layer.vector_mask is None
+            and not utils.is_fill_disabled(layer)
+            and self._mask_feathers(layer)[0] > 0.0
+        )
+
+    def _mask_feathers(self, layer: Layer) -> tuple[float, float]:
+        """The user and vector mask feather this layer renders, ``0.0`` for none.
+
+        The real user mask channel is read as it stands, as is the stored
+        channel of a mask rendered from a vector mask: neither is blurred here.
+        """
+        mask = layer.mask
+        if (
+            mask is None
+            or mask.disabled
+            or mask.parameters is None
+            or (mask.has_real() and not self._effective_force(layer))
+        ):
+            return 0.0, 0.0
+        user = feather.feather_radius(mask.parameters.user_mask_feather)
+        vector_feather = feather.feather_radius(mask.parameters.vector_mask_feather)
+        if mask.flags.user_mask_from_render and layer.vector_mask is not None:
+            user = 0.0
+        return user, vector_feather
+
+    def _feather_check(self, layer: Layer) -> Callable[[int, int], None]:
+        """The allocation guard for a feather blur's working arrays."""
+
+        def check(columns: int, rows: int) -> None:
+            check_pixel_size(
+                columns,
+                rows,
+                1,
+                layer._psd._max_alloc_bytes,
+                estimated_bytes=columns * rows * feather.BLUR_BYTES,
+                warn=False,
+                max_dimension=dimension_limit(layer._psd.version),
+            )
+
+        return check
+
     def _get_mask(
         self,
         layer: Layer,
@@ -2395,19 +2486,69 @@ class Compositor:
         if viewport is None:
             viewport = self._viewport
         shape: float | np.ndarray = 1.0
+        user_feather, vector_feather = self._mask_feathers(layer)
+        vector_drawn: np.ndarray | None = None
+        vector_box = viewport
+        stored_is_vector = False
+        if (
+            vector_feather
+            and clip_to_path
+            and layer.mask is not None
+            and layer.vector_mask is not None
+            and not layer.vector_mask.disabled
+            and (self._redraws(layer) or not utils.has_fill(layer))
+        ):
+            # Photoshop stores a vector mask as a rendered user mask, so the
+            # stored channel already holds the path, hard. It is the path
+            # alone when it matches the path as drawn; alongside a user mask
+            # the two cannot be told apart, and neither is feathered.
+            vector_box = feather.grown_viewport(viewport, vector_feather)
+            check = self._feather_check(layer)
+            check(vector_box[2] - vector_box[0], vector_box[3] - vector_box[1])
+            vector_drawn = vector.draw_vector_mask(layer, vector_box)
+            if layer.mask.flags.user_mask_from_render:
+                stored = layer.numpy("mask", real_mask=False)
+                stored_is_vector = bool(
+                    stored is not None
+                    and np.abs(
+                        paste(
+                            vector_box,
+                            layer.mask.bbox,
+                            stored,
+                            layer.mask.background_color / 255.0,
+                        )
+                        - vector_drawn
+                    ).max()
+                    <= _VECTOR_MATCH
+                )
+                if not stored_is_vector:
+                    vector_feather = 0.0
+                    vector_drawn = None
         if (
             layer.mask is not None
             and not layer.mask.disabled
+            and not stored_is_vector
             and not self._mask_repeats_shape(layer)
         ):
             mask = layer.numpy("mask", real_mask=not self._effective_force(layer))
             if mask is not None:
-                shape = paste(
-                    viewport,
-                    layer.mask.bbox,
-                    mask,
-                    layer.mask.background_color / 255.0,
-                )
+                if user_feather:
+                    shape = feather.blurred_coverage(
+                        viewport,
+                        layer.mask.bbox,
+                        mask,
+                        layer.mask.background_color / 255.0,
+                        user_feather,
+                        domain=(0, 0, layer._psd.width, layer._psd.height),
+                        check=self._feather_check(layer),
+                    )
+                else:
+                    shape = paste(
+                        viewport,
+                        layer.mask.bbox,
+                        mask,
+                        layer.mask.background_color / 255.0,
+                    )
             if layer.mask.parameters:
                 density = layer.mask.parameters.user_mask_density
                 if density is None:
@@ -2424,6 +2565,7 @@ class Compositor:
             and not layer.vector_mask.disabled
             and (
                 self._redraws(layer)
+                or stored_is_vector
                 or (
                     not utils.has_fill(layer)
                     and layer.mask is not None
@@ -2431,7 +2573,17 @@ class Compositor:
                 )
             )
         ):
-            shape *= vector.draw_vector_mask(layer, viewport)
+            if vector_drawn is None:
+                shape *= vector.draw_vector_mask(layer, viewport)
+            else:
+                shape *= feather.blurred_coverage(
+                    viewport,
+                    vector_box,
+                    vector_drawn,
+                    0.0,
+                    vector_feather,
+                    check=self._feather_check(layer),
+                )
 
             if layer.mask is not None and layer.mask.parameters:
                 density_v = layer.mask.parameters.vector_mask_density
