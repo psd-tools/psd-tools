@@ -2467,6 +2467,15 @@ class Compositor:
             return None
         return canvas
 
+    @staticmethod
+    def _stored_geometry(layer: Layer) -> tuple[tuple[int, int, int, int], float]:
+        """The box and background of the stored user mask channel, not the real one."""
+        assert layer.mask is not None
+        data = layer.mask._data
+        return (data.left, data.top, data.right, data.bottom), (
+            data.background_color / 255.0
+        )
+
     def _mask_is_vector(self, layer: Layer) -> bool:
         """Whether the stored mask is the vector path alone, over the canvas."""
         known = self._vector_stored.get(id(layer))
@@ -2475,14 +2484,10 @@ class Compositor:
             canvas = (0, 0, layer._psd.width, layer._psd.height)
             self._feather_check(layer)(canvas[2], canvas[3])
             stored = layer.numpy("mask", real_mask=False)
+            box, background = self._stored_geometry(layer)
             known = stored is not None and bool(
                 np.abs(
-                    paste(
-                        canvas,
-                        layer.mask.bbox,
-                        stored,
-                        layer.mask.background_color / 255.0,
-                    )
+                    paste(canvas, box, stored, background)
                     - vector.draw_vector_mask(layer, canvas)
                 ).max()
                 <= _VECTOR_MATCH
@@ -2559,11 +2564,16 @@ class Compositor:
             mask = layer.numpy("mask", real_mask=not self._effective_force(layer))
             if mask is not None:
                 if user_feather:
+                    box, background = (
+                        (layer.mask.bbox, layer.mask.background_color / 255.0)
+                        if not self._effective_force(layer)
+                        else self._stored_geometry(layer)
+                    )
                     shape = feather.blurred_coverage(
                         viewport,
-                        layer.mask.bbox,
+                        box,
                         mask,
-                        layer.mask.background_color / 255.0,
+                        background,
                         user_feather,
                         domain=self._feather_domain(layer),
                         check=self._feather_check(layer),
