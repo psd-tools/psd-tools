@@ -27,6 +27,9 @@ Changelog
   cannot be read is no longer masked or stroked a second time under
   ``force=True`` (#1059, #1116)
 
+- [fix] An inner stroke on a curved edge no longer fully covers pixels at its
+  inner ridge that should be only partly covered (#957, #1125)
+
 1.27.0 (2026-11-18)
 -------------------
 
