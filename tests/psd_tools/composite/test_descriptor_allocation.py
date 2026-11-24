@@ -1,14 +1,18 @@
 """Allocations a descriptor's size grows are checked before they are made."""
 
+import io
 import logging
 import tracemalloc
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from psd_tools.api import numpy_io, utils
+from psd_tools.api.adjustments import GradientFill
 from psd_tools.api.layers import Layer
 from psd_tools.api.psd_image import PSDImage
+from psd_tools.api.utils import dimension_limit
 from psd_tools.composite import effects, paint
 from psd_tools.composite.composite import _stroke_reach
 from psd_tools.composite.paint import draw_pattern_fill
@@ -431,3 +435,14 @@ def test_a_stroke_gradient_on_a_one_pixel_high_box_is_bounded_along_its_width() 
     assert content.classID == b"gradientLayer"
     with pytest.raises(ValueError, match="per axis"):
         paint.create_fill_desc(layer, content, (0, 0, 10**8, 0))
+
+
+def test_a_lab_gradient_fill_with_a_forged_box_is_rejected_at_once() -> None:
+    """One byte of the layer record makes the box far taller than the format allows (#1124)."""
+    data = bytearray(Path(full_name("colormodes/4x4_16bit_lab.psd")).read_bytes())
+    data[17536] = 57
+    psd = PSDImage.open(io.BytesIO(bytes(data)))
+    layer = next(x for x in psd.descendants() if isinstance(x, GradientFill))
+    assert layer.height > dimension_limit(psd.version)
+    with pytest.raises(ValueError, match="per axis"):
+        psd.composite(force=True)
