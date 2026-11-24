@@ -5,7 +5,9 @@ Changelog
 -------------------
 
 - [fix] A gradient fill layer with a forged bbox now raises ``ValueError`` over
-  ``max_alloc_bytes`` instead of allocating until the process is killed (#1129)
+  ``max_alloc_bytes`` instead of allocating until the process is killed. A very large
+  gradient layer, over about 33 megapixels at the default budget, now needs a higher
+  ``max_alloc_bytes`` (#1129)
 
 - [fix] A tagged block parser that fails with any exception now falls back to the raw
   bytes instead of aborting ``PSDImage.open()``; layer-structure blocks still raise (#1112)
