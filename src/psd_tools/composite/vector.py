@@ -248,16 +248,30 @@ def _solid_inner_band(
     d = distance[1:-1, 1:-1]
     # A weak maximum is a slanted corner, not a ridge, and keeps the pen's coverage.
     gap = d - _RIDGE_DROP
+    # Reused scratch buffers keep the peak near that of the straight share.
     ridge_share = np.full_like(d, -1.0)
+    fronts = np.empty_like(d)
+    back = np.empty_like(d)
+    ridge = np.empty(d.shape, dtype=bool)
+    other = np.empty(d.shape, dtype=bool)
     for first, second in (
         (distance[:-2, 1:-1], distance[2:, 1:-1]),
         (distance[1:-1, :-2], distance[1:-1, 2:]),
     ):
-        ridge = (gap >= first) & (gap >= second)
-        fronts = np.clip(width - first, 0.0, 1.0) + np.clip(width - second, 0.0, 1.0)
+        np.greater_equal(gap, first, out=ridge)
+        np.greater_equal(gap, second, out=other)
+        ridge &= other
+        np.subtract(width, first, out=fronts)
+        np.clip(fronts, 0.0, 1.0, out=fronts)
+        np.subtract(width, second, out=back)
+        np.clip(back, 0.0, 1.0, out=back)
+        fronts += back
         np.maximum(ridge_share, fronts, out=ridge_share, where=ridge)
-    share = np.where(ridge_share >= 0, ridge_share, width + 1.0 - d)
-    solid = np.clip(share, 0.0, 1.0)[:, :, None]
+    del gap, back, ridge, other
+    share = np.subtract(width + 1.0, d, out=fronts)
+    np.copyto(share, ridge_share, where=ridge_share >= 0)
+    del ridge_share
+    solid = np.clip(share, 0.0, 1.0, out=share)[:, :, None]
     if near is not None:
         solid = (
             solid
