@@ -4,6 +4,11 @@ Changelog
 1.28.0 (unreleased)
 -------------------
 
+- [security] Compositing a gradient fill layer whose box is forged to a huge size
+  raises ``ValueError`` instead of allocating until the process is killed. A gradient
+  fill is budgeted at 128 bytes per pixel, so one over about 33 megapixels needs a
+  higher ``max_alloc_bytes`` (#1129)
+
 - [fix] A tagged block parser that fails with any exception now falls back to the raw
   bytes instead of aborting ``PSDImage.open()``; layer-structure blocks still raise (#1112)
 

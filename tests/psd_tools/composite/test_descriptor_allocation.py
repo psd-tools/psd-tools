@@ -373,3 +373,30 @@ def test_a_viewport_with_one_empty_axis_allocates_nothing_along_the_other(
     assert color is not None and color.size == 0
     assert color.shape == (viewport[3], viewport[2], color.shape[2])
     assert peak < 1_000_000
+
+
+def _gradient_fill() -> tuple[PSDImage, Layer]:
+    psd = PSDImage.open(full_name("layers-minimal/gradient-fill.psd"))
+    layer = psd[0]
+    assert layer.tagged_blocks.get_data(Tag.GRADIENT_FILL_SETTING) is not None
+    return psd, layer
+
+
+def test_a_gradient_fill_is_checked_at_its_peak_before_it_is_drawn() -> None:
+    psd, layer = _gradient_fill()
+    left, top, right, bottom = layer.bbox
+    peak = (right - left) * (bottom - top) * paint.GRADIENT_FILL_BYTES
+
+    psd._max_alloc_bytes = peak
+    psd.composite(force=True, ignore_preview=True)
+    psd._max_alloc_bytes = peak - 1
+    with pytest.raises(ValueError, match="over the configured budget"):
+        psd.composite(force=True, ignore_preview=True)
+
+
+def test_a_forged_gradient_fill_box_is_rejected_without_a_budget() -> None:
+    """The ramp is built over the layer box the file gives."""
+    psd, layer = _gradient_fill()
+    layer._record.left = -int(HUGE)
+    with pytest.raises(ValueError, match="maximum of 30000 px per axis"):
+        psd.composite(force=True, ignore_preview=True)

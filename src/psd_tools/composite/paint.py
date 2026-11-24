@@ -259,6 +259,7 @@ def create_fill(
             viewport, layer._psd, desc, _pattern_anchor(layer, desc)
         )
     if (desc := blocks.get_data(Tag.GRADIENT_FILL_SETTING)) is not None:
+        _check_gradient_viewport(layer._psd, viewport)
         return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     if (desc := blocks.get_data(Tag.VECTOR_STROKE_CONTENT_DATA)) is not None:
         if Key.Color in desc:
@@ -268,8 +269,26 @@ def create_fill(
                 viewport, layer._psd, desc, _pattern_anchor(layer, desc)
             )
         elif Key.Gradient in desc:
+            _check_gradient_viewport(layer._psd, viewport)
             return draw_gradient_fill(viewport, layer._psd.color_mode, desc)
     return None, None
+
+
+def _check_gradient_viewport(psd: Any, viewport: tuple[int, int, int, int]) -> None:
+    """Raise ``ValueError`` when a gradient over ``viewport`` would go over budget."""
+    # The ramp's grids are sized from the viewport, which for a layer fill is
+    # the layer box the file gives (#1129).
+    height, width = viewport[3] - viewport[1], viewport[2] - viewport[0]
+    if height <= 0 or width <= 0:
+        return
+    check_pixel_size(
+        width,
+        height,
+        max_alloc_bytes=getattr(psd, "_max_alloc_bytes", None),
+        estimated_bytes=width * height * GRADIENT_FILL_BYTES,
+        warn=False,
+        max_dimension=dimension_limit(psd.version),
+    )
 
 
 def _pattern_anchor(
