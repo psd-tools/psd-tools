@@ -956,17 +956,22 @@ def _is_background_layer(layer: "LayerProtocol") -> bool:
     )
 
 
-def _knockout_survival(silhouette: np.ndarray, paint_opacity: float) -> np.ndarray:
+def _knockout_survival(
+    silhouette: np.ndarray, paint_opacity: float, cut: np.ndarray | None = None
+) -> np.ndarray:
     """The share of a drop shadow left beneath a layer that knocks it out.
 
     ``paint_opacity`` is the fill opacity times the layer opacity. The layer is
     composited over the shadow by ``silhouette * paint_opacity``, and what the
     backdrop shows of the shadow through it is ``1 - silhouette`` whatever the
     paint opacity: a layer at full opacity cuts nothing until it is opaque, and
-    one with no paint cuts by its whole silhouette.
+    one with no paint cuts by its whole silhouette. ``cut`` is the coverage
+    that is knocked out beside the silhouette, a stroke effect's outside band.
     """
     covered = silhouette * paint_opacity
     remaining = np.float32(1.0) - covered
+    if cut is not None:
+        silhouette = np.minimum(silhouette + cut, np.float32(1.0))
     survival = np.divide(
         np.float32(1.0) - silhouette,
         remaining,
@@ -2804,6 +2809,13 @@ class Compositor:
         if vx0 <= x0 and vy0 <= y0 and x1 <= vx1 and y1 <= vy1:
             return paste(viewport, self._viewport, shape)
 
+        return self._read_traced(layer, viewport, traces_mask)
+
+    def _read_traced(
+        self, layer: Layer, viewport: tuple[int, int, int, int], traces_mask: bool
+    ) -> np.ndarray:
+        """The coverage a stroke effect is traced from, read on ``viewport``."""
+        x0, y0, x1, y1 = viewport
         # TODO: a group whose stroke traces its mask -- ``force`` with a vector
         # mask on the group -- gets the mask outline alone, which for a group
         # bears no relation to where its contents are. Pre-existing, unreachable
@@ -3008,7 +3020,8 @@ class Compositor:
         shadow is cut under the silhouette it is cast from rather than under
         the layer's paint, as :py:func:`_knockout_survival` measures, so a
         layer faded by fill opacity shows the backdrop through itself and not
-        its shadow.
+        its shadow. The cut also takes in a stroke effect's band, which casts
+        nothing.
 
         Each effect is guarded as the strokes are, with the silhouette read
         outside both guards so that a fault compositing a group's contents is
@@ -3066,13 +3079,53 @@ class Compositor:
                 continue
             if knocks_out:
                 coverage = coverage * _knockout_survival(
-                    silhouette, fill_opacity * opacity
+                    silhouette,
+                    fill_opacity * opacity,
+                    self._stroke_effect_cut(layer, bbox, silhouette),
                 )
             coverage = paste(self._viewport, bbox, coverage)
             if coverage.any():
                 self._apply_source(
                     color, coverage, coverage * effect_opacity * opacity, blend_mode
                 )
+
+    def _stroke_effect_cut(
+        self, layer: Layer, bbox: tuple[int, int, int, int], silhouette: np.ndarray
+    ) -> np.ndarray | None:
+        """The part of the layer's stroke effects beside ``silhouette``, or None.
+
+        A knockout is cut under the stroked layer, though the shadow is cast
+        from the fill alone.
+        """
+        if layer.is_group():
+            return None
+        traces_mask = (self._effective_force(layer) and layer.has_vector_mask()) or (
+            not layer.has_pixels() and utils.has_fill(layer)
+        )
+        cut: np.ndarray | None = None
+        for effect in _readable(layer, "stroke"):
+            try:
+                box = stroke_bbox(
+                    layer.bbox,
+                    effect.descriptor,
+                    layer._psd._max_alloc_bytes,
+                    max_dimension=dimension_limit(layer._psd.version),
+                )
+                if box[0] >= box[2] or box[1] >= box[3]:
+                    continue
+                traced = self._read_traced(layer, box, traces_mask)
+                _, band, inside = draw_stroke_effect_split(
+                    box, traced, effect.descriptor, layer._psd
+                )
+            except _UNREADABLE as error:
+                logger.debug("Cannot cut under a stroke effect of %s: %s", layer, error)
+                continue
+            band = paste(bbox, box, band)
+            inside = paste(bbox, box, inside)
+            beside = np.minimum(band - np.minimum(inside, silhouette), 1.0 - silhouette)
+            beside = np.maximum(beside, 0.0)
+            cut = beside if cut is None else np.minimum(cut + beside, 1.0)
+        return cut
 
     def _add_stroke_effects(
         self,
