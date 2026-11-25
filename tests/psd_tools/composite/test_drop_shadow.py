@@ -977,10 +977,10 @@ def test_a_stroke_effect_does_not_grow_the_silhouette_its_shadow_is_cast_from(
     assert _error(psd, None, force=force) <= 1e-4
 
 
-@pytest.mark.xfail(strict=True, reason="knockout under a stroke effect (#1139)")
-def test_a_knockout_is_cut_under_a_stroke_effect() -> None:
+@pytest.mark.parametrize("force", [False, True])
+def test_a_knockout_is_cut_under_a_stroke_effect(force: bool) -> None:
     psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect-knockout.psd"))
-    assert _error(psd, None) <= 1e-4
+    assert _error(psd, None, force=force) <= 1e-4
 
 
 # -- Photoshop-authored grids ---------------------------------------------- #

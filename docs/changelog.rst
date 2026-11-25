@@ -8,6 +8,9 @@ Changelog
   the shape is redrawn (``force=True``, or no stored pixels). Before, it followed the
   fill alone, and a stroke-only shape cast nothing (#1070)
 
+- [fix] A drop shadow set to knock out is now also cut under the layer's stroke
+  effect. Before, the shadow showed through a semi-transparent stroke band (#1139)
+
 - [fix] Aligned vertical Smooth and full-smoothness Classic gradient overlays
   with zero offsets and integer endpoints now use layer height rather than width.
   Color interpolation remains approximate (#1138)
