@@ -3081,7 +3081,7 @@ class Compositor:
                 coverage = coverage * _knockout_survival(
                     silhouette,
                     fill_opacity * opacity,
-                    self._stroke_effect_cut(layer, bbox),
+                    self._stroke_effect_cut(layer, bbox, silhouette),
                 )
             coverage = paste(self._viewport, bbox, coverage)
             if coverage.any():
@@ -3090,9 +3090,9 @@ class Compositor:
                 )
 
     def _stroke_effect_cut(
-        self, layer: Layer, bbox: tuple[int, int, int, int]
+        self, layer: Layer, bbox: tuple[int, int, int, int], silhouette: np.ndarray
     ) -> np.ndarray | None:
-        """The part of the layer's stroke effects beside its fill, or None.
+        """The part of the layer's stroke effects beside ``silhouette``, or None.
 
         A knockout is cut under the stroked layer, though the shadow is cast
         from the fill alone.
@@ -3120,7 +3120,10 @@ class Compositor:
             except _UNREADABLE as error:
                 logger.debug("Cannot cut under a stroke effect of %s: %s", layer, error)
                 continue
-            beside = paste(bbox, box, np.maximum(band - inside, 0.0))
+            band = paste(bbox, box, band)
+            inside = paste(bbox, box, inside)
+            beside = np.minimum(band - np.minimum(inside, silhouette), 1.0 - silhouette)
+            beside = np.maximum(beside, 0.0)
             cut = beside if cut is None else np.minimum(cut + beside, 1.0)
         return cut
 

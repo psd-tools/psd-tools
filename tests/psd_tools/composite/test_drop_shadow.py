@@ -985,6 +985,28 @@ def test_a_knockout_adds_the_stroke_beside_a_partly_covered_fill() -> None:
     assert survival.item() == pytest.approx(0.0)
 
 
+def test_a_stroke_band_over_no_silhouette_is_all_beside_it() -> None:
+    """A band the layer's silhouette does not cover is cut under whole."""
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect-knockout.psd"))
+    layer = next(x for x in psd.descendants() if x.name == "Layer 1")
+    for effect in layer.effects.find("stroke"):
+        effect.descriptor[Key.Style] = Enumerated(b"FStl", b"InsF")
+    box = psd.viewbox
+    height, width = box[3] - box[1], box[2] - box[0]
+    compositor = Compositor(
+        box,
+        np.ones((height, width, 3), dtype=np.float32),
+        np.zeros((height, width, 1), dtype=np.float32),
+    )
+    empty = np.zeros((height, width, 1), dtype=np.float32)
+    fill = compositor._cast_shape(layer, box)
+    over_nothing = compositor._stroke_effect_cut(layer, box, empty)
+    over_fill = compositor._stroke_effect_cut(layer, box, fill)
+    assert over_nothing is not None and over_fill is not None
+    assert (over_nothing - over_fill).max() > 0.5
+    assert (fill + over_fill).max() <= 1.0 + 1e-6
+
+
 @pytest.mark.parametrize("force", [False, True])
 def test_a_knockout_is_cut_under_a_stroke_effect(force: bool) -> None:
     psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect-knockout.psd"))
