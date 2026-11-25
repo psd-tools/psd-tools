@@ -977,6 +977,14 @@ def test_a_stroke_effect_does_not_grow_the_silhouette_its_shadow_is_cast_from(
     assert _error(psd, None, force=force) <= 1e-4
 
 
+def test_a_knockout_adds_the_stroke_beside_a_partly_covered_fill() -> None:
+    """Half fill and half stroke cover the pixel, so no shadow is left."""
+    silhouette = np.full((1, 1, 1), 0.5, np.float32)
+    stroke = np.full((1, 1, 1), 0.5, np.float32)
+    survival = _knockout_survival(silhouette, 1.0, stroke)
+    assert survival.item() == pytest.approx(0.0)
+
+
 @pytest.mark.parametrize("force", [False, True])
 def test_a_knockout_is_cut_under_a_stroke_effect(force: bool) -> None:
     psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect-knockout.psd"))

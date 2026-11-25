@@ -966,12 +966,12 @@ def _knockout_survival(
     backdrop shows of the shadow through it is ``1 - silhouette`` whatever the
     paint opacity: a layer at full opacity cuts nothing until it is opaque, and
     one with no paint cuts by its whole silhouette. ``cut`` is the coverage
-    that is knocked out beyond the silhouette, a stroke effect's band.
+    that is knocked out beside the silhouette, a stroke effect's outside band.
     """
     covered = silhouette * paint_opacity
     remaining = np.float32(1.0) - covered
     if cut is not None:
-        silhouette = np.maximum(silhouette, cut)
+        silhouette = np.minimum(silhouette + cut, np.float32(1.0))
     survival = np.divide(
         np.float32(1.0) - silhouette,
         remaining,
@@ -3092,7 +3092,7 @@ class Compositor:
     def _stroke_effect_cut(
         self, layer: Layer, bbox: tuple[int, int, int, int]
     ) -> np.ndarray | None:
-        """The band of the layer's stroke effects on ``bbox``, or None.
+        """The part of the layer's stroke effects beside its fill, or None.
 
         A knockout is cut under the stroked layer, though the shadow is cast
         from the fill alone.
@@ -3114,14 +3114,14 @@ class Compositor:
                 if box[0] >= box[2] or box[1] >= box[3]:
                     continue
                 traced = self._read_traced(layer, box, traces_mask)
-                _, band, _ = draw_stroke_effect_split(
+                _, band, inside = draw_stroke_effect_split(
                     box, traced, effect.descriptor, layer._psd
                 )
             except _UNREADABLE as error:
                 logger.debug("Cannot cut under a stroke effect of %s: %s", layer, error)
                 continue
-            band = paste(bbox, box, band)
-            cut = band if cut is None else np.maximum(cut, band)
+            beside = paste(bbox, box, np.maximum(band - inside, 0.0))
+            cut = beside if cut is None else np.minimum(cut + beside, 1.0)
         return cut
 
     def _add_stroke_effects(
