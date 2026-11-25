@@ -32,7 +32,7 @@ from psd_tools.composite.composite import (
 )
 from psd_tools.constants import BlendMode, Tag
 from psd_tools.psd.base import ByteElement
-from psd_tools.psd.descriptor import Bool, Descriptor, Double
+from psd_tools.psd.descriptor import Bool, Descriptor, Double, Enumerated
 from psd_tools.terminology import Key, Klass
 
 from ..utils import full_name
@@ -900,6 +900,55 @@ def test_a_redrawn_shape_casts_its_shadow_from_fill_and_stroke(filename: str) ->
         for effect in list(layer.effects.find("dropshadow")):
             effect.descriptor[Key.Enabled] = False
     assert _error(unshadowed, None, force=True) >= 1e-2, "the file has no shadow"
+
+
+def _hollow(edit: Callable[[Descriptor], Any]) -> Layer:
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-hollow.psd"))
+    layer = next(x for x in psd.descendants() if x.kind == "shape")
+    assert layer.stroke is not None
+    edit(layer.stroke._data)
+    return layer
+
+
+def _unshadowed(layer: Layer) -> Layer:
+    for effect in list(layer.effects.find("dropshadow")):
+        effect.descriptor[Key.Enabled] = False
+    return layer
+
+
+def test_a_stroke_that_is_not_drawn_casts_no_shadow() -> None:
+    """An unreadable stroke fill drops the stroke, and the shadow with it."""
+    unreadable = _hollow(lambda data: data[b"strokeStyleContent"].pop(Key.Color))
+    disabled = _hollow(lambda data: data[b"strokeEnabled"].__setattr__("value", False))
+    viewport = (0, 0, 100, 100)
+    assert _alone(disabled, viewport, force=True).max() == 0.0
+    assert np.array_equal(
+        _alone(unreadable, viewport, force=True),
+        _alone(disabled, viewport, force=True),
+    )
+
+
+def test_a_hollow_inner_stroke_casts_what_it_draws() -> None:
+    """The silhouette is the stroke's rendered alpha, edge pixels included."""
+    layer = _unshadowed(
+        _hollow(
+            lambda data: data.__setitem__(
+                b"strokeStyleLineAlignment",
+                Enumerated(b"strokeStyleLineAlignment", b"strokeStyleAlignInside"),
+            )
+        )
+    )
+    viewport = (0, 0, 100, 100)
+    compositor = Compositor(
+        viewport,
+        np.ones((100, 100, 3), dtype=np.float32),
+        np.zeros((100, 100, 1), dtype=np.float32),
+        force=True,
+    )
+    cast = compositor._cast_shape(layer, viewport)
+    drawn = _alone(layer, viewport, force=True)
+    assert drawn.max() > 0.0
+    assert np.allclose(cast, drawn, atol=1e-6)
 
 
 @pytest.mark.parametrize("force", [False, True])

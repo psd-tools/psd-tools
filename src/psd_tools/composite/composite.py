@@ -2640,9 +2640,12 @@ class Compositor:
         return float(shape), opacity
 
     def _get_stroke(
-        self, layer: Layer, path: np.ndarray | None = None
+        self,
+        layer: Layer,
+        path: np.ndarray | None = None,
+        viewport: tuple[int, int, int, int] | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get stroke source.
+        """Get stroke source, on ``viewport`` or this compositor's.
 
         The fill is drawn on the layer's box grown by the stroke width and
         pasted onto this compositor's viewport, but laid out across the path's
@@ -2655,6 +2658,8 @@ class Compositor:
         """
         if layer.stroke is None:
             raise ValueError("Layer does not have stroke data.")
+        if viewport is None:
+            viewport = self._viewport
         desc = layer.stroke._data
         try:
             width = math.ceil(vector.stroke_width_px(desc))
@@ -2671,7 +2676,7 @@ class Compositor:
         if fill_bbox[0] < fill_bbox[2] and fill_bbox[1] < fill_bbox[3]:
             check_growth(
                 (fill_bbox[2] - fill_bbox[0]) * (fill_bbox[3] - fill_bbox[1]),
-                max(_pixels(self._viewport), _pixels(layer.bbox)),
+                max(_pixels(viewport), _pixels(layer.bbox)),
                 _STROKE_GROWTH,
             )
             check_pixel_size(
@@ -2702,8 +2707,8 @@ class Compositor:
             raise ValueError(
                 "Unsupported stroke fill descriptor in layer strokeStyleContent"
             )
-        color = paste(self._viewport, fill_bbox, color, 1.0)
-        shape = vector.draw_stroke(layer, self._viewport, path)
+        color = paste(viewport, fill_bbox, color, 1.0)
+        shape = vector.draw_stroke(layer, viewport, path)
         opacity = desc.get("strokeStyleOpacity", 100.0) / 100.0
         alpha = shape * opacity
         return color, shape, alpha
@@ -2916,39 +2921,56 @@ class Compositor:
         """
         if layer.is_group():
             own = self._get_group_shape(layer, viewport, alpha=True)
-        else:
-            own = self._get_object_shape(layer, viewport)
-            # A redrawn shape with its fill off has no coverage of its own.
-            if utils.is_fill_disabled(layer) and self._redraws(layer):
-                own = own * 0.0
+            return utils.clip(own * self._get_mask(layer, viewport))
+        object_shape = own = self._get_object_shape(layer, viewport)
+        # A redrawn shape with its fill off has no coverage of its own.
+        fill_off = utils.is_fill_disabled(layer) and self._redraws(layer)
+        if fill_off:
+            own = own * 0.0
         mask = self._get_mask(layer, viewport)
         silhouette = own * mask
-        if not layer.is_group() and self._has_redrawn_stroke(layer):
+        if self._has_redrawn_stroke(layer):
             try:
-                silhouette = silhouette + self._cast_stroke(layer, viewport, own)
+                silhouette = silhouette + self._cast_stroke(
+                    layer, viewport, own, object_shape * mask, fill_off
+                )
+            except paint._UnreadableDescriptor as error:
+                logger.debug("Cannot read the stroke of %s: %s", layer, error)
             except _UNREADABLE as error:
                 logger.debug("Cannot cast the stroke of %s: %s", layer, error)
         return utils.clip(silhouette)
 
     def _cast_stroke(
-        self, layer: Layer, viewport: tuple[int, int, int, int], fill: np.ndarray
+        self,
+        layer: Layer,
+        viewport: tuple[int, int, int, int],
+        fill: np.ndarray,
+        masked_object: np.ndarray,
+        fill_off: bool,
     ) -> np.ndarray:
         """What a redrawn vector stroke adds to the silhouette beyond ``fill``.
 
         The stroke's own alpha, where the fill leaves any, as
-        :py:meth:`_get_object` composites it: an inner stroke is held inside
-        the path and a centred or outer one is not clipped to it.
+        :py:meth:`_get_object` composites it, and only where that paints one:
+        an inner stroke is held inside the path, a centred or outer one is not
+        clipped to it, and with the fill off an inner one is the object's own
+        coverage times the stroke's (``masked_object``).
         """
         assert layer.stroke is not None
         path = vector.draw_vector_mask(layer, viewport)
-        stroke = vector.draw_stroke(layer, viewport, path)
+        _, stroke, alpha = self._get_stroke(layer, path, viewport)
         inner = layer.stroke.line_alignment is StrokeAlignment.INNER
+        if fill_off and inner:
+            return masked_object * alpha
         if inner:
-            stroke = np.minimum(stroke, path)
+            alpha = alpha * np.divide(
+                np.minimum(stroke, path),
+                stroke,
+                out=np.zeros_like(stroke),
+                where=stroke > 0,
+            )
         covered = fill if inner else fill * path
-        opacity = layer.stroke.opacity
-        opacity = 100.0 if opacity is None else opacity
-        alpha = stroke * (opacity / 100.0) * (1.0 - covered)
+        alpha = alpha * (1.0 - covered)
         return alpha * self._get_mask(layer, viewport, clip_to_path=False)
 
     def _apply_drop_shadows(self, layer: Layer) -> None:
