@@ -881,6 +881,42 @@ def test_drop_shadows_render_to_photoshops_preview_when_forced() -> None:
     assert _error(PSDImage.open(full_name("masks.psb")), None, force=True) <= 3e-5
 
 
+# One shape layer each, with a 60 px square and a 10 px stroke, in Photoshop.
+_STROKED = [
+    "effects/drop-shadow-stroke-outer.psd",
+    "effects/drop-shadow-stroke-hollow.psd",
+    "effects/drop-shadow-stroke-center.psd",
+    "effects/drop-shadow-stroke-inner.psd",
+]
+
+
+@pytest.mark.parametrize("filename", _STROKED)
+def test_a_redrawn_shape_casts_its_shadow_from_fill_and_stroke(filename: str) -> None:
+    """The vector stroke is part of what Photoshop casts, fill on or off."""
+    psd = PSDImage.open(full_name(filename))
+    assert _error(psd, None, force=True) <= 1e-8
+    unshadowed = PSDImage.open(full_name(filename))
+    for layer in unshadowed.descendants():
+        for effect in list(layer.effects.find("dropshadow")):
+            effect.descriptor[Key.Enabled] = False
+    assert _error(unshadowed, None, force=True) >= 1e-2, "the file has no shadow"
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_a_stroke_effect_does_not_grow_the_silhouette_its_shadow_is_cast_from(
+    force: bool,
+) -> None:
+    """Photoshop casts from the fill alone, so the shadow outruns the stroke band."""
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect.psd"))
+    assert _error(psd, None, force=force) <= 1e-4
+
+
+@pytest.mark.xfail(strict=True, reason="knockout under a stroke effect (#1139)")
+def test_a_knockout_is_cut_under_a_stroke_effect() -> None:
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect-knockout.psd"))
+    assert _error(psd, None) <= 1e-4
+
+
 # -- Photoshop-authored grids ---------------------------------------------- #
 
 # Each fixture lays one drop shadow per cell of a grid, with margins wider than

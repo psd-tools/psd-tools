@@ -347,11 +347,12 @@ def _cast_bbox(
     A layer's own box, except for a group: its silhouette is its composited
     contents, effects included, and a child's stroke or shadow runs past the
     group's box, which is the union of its children's own. The group's
-    content box is every box those contents paint on (#808).
+    content box is every box those contents paint on (#808). A vector stroke
+    that is drawn from the path casts too, so it grows the box of an object.
     """
     if layer.is_group():
         return _content_bbox(layer, memo)
-    return layer.bbox
+    return _vector_stroke_reach(layer)
 
 
 def _shadow_reach(
@@ -2921,7 +2922,34 @@ class Compositor:
             if utils.is_fill_disabled(layer) and self._redraws(layer):
                 own = own * 0.0
         mask = self._get_mask(layer, viewport)
-        return utils.clip(own * mask)
+        silhouette = own * mask
+        if not layer.is_group() and self._has_redrawn_stroke(layer):
+            try:
+                silhouette = silhouette + self._cast_stroke(layer, viewport, own)
+            except _UNREADABLE as error:
+                logger.debug("Cannot cast the stroke of %s: %s", layer, error)
+        return utils.clip(silhouette)
+
+    def _cast_stroke(
+        self, layer: Layer, viewport: tuple[int, int, int, int], fill: np.ndarray
+    ) -> np.ndarray:
+        """What a redrawn vector stroke adds to the silhouette beyond ``fill``.
+
+        The stroke's own alpha, where the fill leaves any, as
+        :py:meth:`_get_object` composites it: an inner stroke is held inside
+        the path and a centred or outer one is not clipped to it.
+        """
+        assert layer.stroke is not None
+        path = vector.draw_vector_mask(layer, viewport)
+        stroke = vector.draw_stroke(layer, viewport, path)
+        inner = layer.stroke.line_alignment is StrokeAlignment.INNER
+        if inner:
+            stroke = np.minimum(stroke, path)
+        covered = fill if inner else fill * path
+        opacity = layer.stroke.opacity
+        opacity = 100.0 if opacity is None else opacity
+        alpha = stroke * (opacity / 100.0) * (1.0 - covered)
+        return alpha * self._get_mask(layer, viewport, clip_to_path=False)
 
     def _apply_drop_shadows(self, layer: Layer) -> None:
         """Composite every drop shadow of the layer, beneath the layer.
