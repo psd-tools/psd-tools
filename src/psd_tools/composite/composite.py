@@ -270,6 +270,11 @@ def _path_bbox(layer: Layer) -> tuple[int, int, int, int]:
         return layer.bbox
 
 
+# An outer stroke is drawn as a pen of twice its width, so a mitre reaches
+# ``vector._MITER_REACH`` widths from the path, one of which the stroke's reach has.
+_MITER_EXTRA = vector._MITER_REACH - 1.0
+
+
 def _vector_stroke_reach(layer: Layer) -> tuple[int, int, int, int]:
     """``layer.bbox`` grown by the width of a centred or outer vector stroke.
 
@@ -348,11 +353,25 @@ def _cast_bbox(
     contents, effects included, and a child's stroke or shadow runs past the
     group's box, which is the union of its children's own. The group's
     content box is every box those contents paint on (#808). A vector stroke
-    that is drawn from the path casts too, so it grows the box of an object.
+    that is drawn from the path casts too, so it grows the box of an object,
+    out to where an outer stroke's mitred corners can reach.
     """
     if layer.is_group():
         return _content_bbox(layer, memo)
-    return _vector_stroke_reach(layer)
+    bbox = _vector_stroke_reach(layer)
+    stroke = layer.stroke if layer.has_vector_mask() else None
+    if (
+        stroke is not None
+        and stroke.enabled
+        and stroke.line_alignment is StrokeAlignment.OUTER
+    ):
+        try:
+            extra = math.ceil(vector.stroke_width_px(stroke._data) * _MITER_EXTRA)
+        except (OverflowError, ValueError, TypeError):
+            return bbox
+        extra = max(extra, 0)
+        return (bbox[0] - extra, bbox[1] - extra, bbox[2] + extra, bbox[3] + extra)
+    return bbox
 
 
 def _shadow_reach(

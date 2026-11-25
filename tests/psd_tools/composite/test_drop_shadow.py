@@ -24,6 +24,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite, effects, utils
 from psd_tools.composite.composite import (
     Compositor,
+    _cast_bbox,
     _content_bbox,
     _effect_reach,
     _knockout_survival,
@@ -949,6 +950,22 @@ def test_a_hollow_inner_stroke_casts_what_it_draws() -> None:
     drawn = _alone(layer, viewport, force=True)
     assert drawn.max() > 0.0
     assert np.allclose(cast, drawn, atol=1e-6)
+
+
+def test_the_cast_box_reaches_an_outer_strokes_mitred_corner() -> None:
+    """A mitre reaches 1.5 widths from the path, and the box has to hold it."""
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-outer.psd"))
+    layer = next(x for x in psd.descendants() if x.kind == "shape")
+    assert layer.stroke is not None
+    width = layer.stroke.line_width
+    left, top, right, bottom = layer.bbox
+    reach = int(np.ceil(1.5 * width))
+    assert _cast_bbox(layer) == (
+        left - reach,
+        top - reach,
+        right + reach,
+        bottom + reach,
+    )
 
 
 @pytest.mark.parametrize("force", [False, True])
