@@ -109,6 +109,62 @@ def test_vertical_overlay_uses_pixel_coordinates(angle: int, reverse: bool) -> N
 
 
 @pytest.mark.parametrize(
+    "method,smoothness", [(b"Gcls", 4096), (b"Smoo", 0), (b"Smoo", 4096)]
+)
+@pytest.mark.parametrize("force", [False, True])
+def test_smooth_vertical_overlay_keeps_geometry(
+    method: bytes, smoothness: int, force: bool
+) -> None:
+    doc = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
+    layer = doc[0]
+    desc = next(iter(layer.effects)).descriptor
+    expected_geometry = paint._vertical_overlay_geometry(layer, desc)
+    assert expected_geometry is not None
+    expected_alpha = _render(doc, force)[..., 3]
+    desc[b"gs99"] = Enumerated(enum=method)
+    desc[b"Grad"][b"Intr"] = Double(smoothness)
+    encoded = desc.tobytes()
+    assert paint._vertical_overlay_geometry(layer, desc) == expected_geometry
+    np.testing.assert_array_equal(_render(doc, force)[..., 3], expected_alpha)
+    assert desc.tobytes() == encoded
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_smooth_vertical_overlay_matches_photoshop(force: bool) -> None:
+    doc = PSDImage.open(full_name("gradient-geometry/shape-90-smooth.psd"))
+    preview = doc.topil(apply_icc=False)
+    assert preview is not None
+    reference = np.asarray(preview.convert("RGBA"), dtype=float)
+    actual = _render(doc, force).astype(float)
+    visible = (actual[..., 3] > 0) | (reference[..., 3] > 0)
+    error = abs(actual[..., :3] - reference[..., :3])[visible]
+    assert error.mean() <= 0.6
+    assert error.max() <= 2
+    # Check vector rasterization separately from gradient color interpolation.
+    assert abs(actual[..., 3] - reference[..., 3]).max() <= 1
+
+
+@pytest.mark.parametrize(
+    "method,smoothness", [(b"Gcls", 4096), (b"Smoo", 0), (b"Smoo", 4096)]
+)
+@pytest.mark.parametrize("key", [b"Hrzn", b"Vrtc"])
+def test_smooth_overlay_offset_keeps_existing_paint(
+    method: bytes, smoothness: int, key: bytes
+) -> None:
+    doc = PSDImage.open(full_name("gradient-geometry/pixel-90-base.psd"))
+    layer = doc[0]
+    desc = next(iter(layer.effects)).descriptor
+    desc[b"gs99"] = Enumerated(enum=method)
+    desc[b"Grad"][b"Intr"] = Double(smoothness)
+    desc[b"Ofst"][key] = Double(25)
+    assert paint._vertical_overlay_geometry(layer, desc) is None
+    before = paint.draw_gradient_fill(layer.bbox, doc.color_mode, desc)
+    after = paint.draw_gradient_overlay(layer, desc)
+    for a, b in zip(before, after, strict=True):
+        np.testing.assert_array_equal(a, b)
+
+
+@pytest.mark.parametrize(
     "path,value",
     [
         ((b"Angl",), Double(0)),
@@ -116,10 +172,10 @@ def test_vertical_overlay_uses_pixel_coordinates(angle: int, reverse: bool) -> N
         ((b"Angl",), Double(89.999)),
         ((b"Angl",), Double(float("nan"))),
         ((b"Angl",), Double(float("inf"))),
-        ((b"gs99",), Enumerated(enum=b"Smoo")),
+        ((b"gs99",), Enumerated(enum=b"unknown")),
         ((b"gs99",), Enumerated(enum=b"Perc")),
         ((b"gs99",), None),
-        ((b"Grad", b"Intr"), Double(4096)),
+        ((b"Grad", b"Intr"), Double(2048)),
         ((b"Grad", b"Clrs", 0, b"Mdpn"), Double(25)),
         ((b"Grad", b"Trns", 0, b"Mdpn"), Double(25)),
         ((b"Dthr",), Bool(True)),
