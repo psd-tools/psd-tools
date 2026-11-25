@@ -8,6 +8,10 @@ Changelog
   the shape is redrawn (``force=True``, or no stored pixels). Before, it followed the
   fill alone, and a stroke-only shape cast nothing (#1070)
 
+- [fix] Aligned vertical Smooth and full-smoothness Classic gradient overlays
+  with zero offsets and integer endpoints now use layer height rather than width.
+  Color interpolation remains approximate (#1138)
+
 - [fix] ``composite()`` now renders a layer mask's Feather. A layer with both a user and
   a vector mask, a vector mask over a fill, or a mask read from a real channel still
   renders unfeathered (#326)
