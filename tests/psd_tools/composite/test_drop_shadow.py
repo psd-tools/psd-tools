@@ -24,6 +24,7 @@ from psd_tools.api.psd_image import PSDImage
 from psd_tools.composite import composite, effects, utils
 from psd_tools.composite.composite import (
     Compositor,
+    _cast_bbox,
     _content_bbox,
     _effect_reach,
     _knockout_survival,
@@ -32,7 +33,7 @@ from psd_tools.composite.composite import (
 )
 from psd_tools.constants import BlendMode, Tag
 from psd_tools.psd.base import ByteElement
-from psd_tools.psd.descriptor import Bool, Descriptor, Double
+from psd_tools.psd.descriptor import Bool, Descriptor, Double, Enumerated
 from psd_tools.terminology import Key, Klass
 
 from ..utils import full_name
@@ -879,6 +880,107 @@ def test_drop_shadows_render_to_photoshops_preview(
 def test_drop_shadows_render_to_photoshops_preview_when_forced() -> None:
     """``force=True`` redraws masks.psb's cards from their paths: 1.6e-5."""
     assert _error(PSDImage.open(full_name("masks.psb")), None, force=True) <= 3e-5
+
+
+# One shape layer each, with a 60 px square and a 10 px stroke, in Photoshop.
+_STROKED = [
+    "effects/drop-shadow-stroke-outer.psd",
+    "effects/drop-shadow-stroke-hollow.psd",
+    "effects/drop-shadow-stroke-center.psd",
+    "effects/drop-shadow-stroke-inner.psd",
+]
+
+
+@pytest.mark.parametrize("filename", _STROKED)
+def test_a_redrawn_shape_casts_its_shadow_from_fill_and_stroke(filename: str) -> None:
+    """The vector stroke is part of what Photoshop casts, fill on or off."""
+    psd = PSDImage.open(full_name(filename))
+    assert _error(psd, None, force=True) <= 1e-8
+    unshadowed = PSDImage.open(full_name(filename))
+    for layer in unshadowed.descendants():
+        for effect in list(layer.effects.find("dropshadow")):
+            effect.descriptor[Key.Enabled] = False
+    assert _error(unshadowed, None, force=True) >= 1e-2, "the file has no shadow"
+
+
+def _hollow(edit: Callable[[Descriptor], Any]) -> Layer:
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-hollow.psd"))
+    layer = next(x for x in psd.descendants() if x.kind == "shape")
+    assert layer.stroke is not None
+    edit(layer.stroke._data)
+    return layer
+
+
+def _unshadowed(layer: Layer) -> Layer:
+    for effect in list(layer.effects.find("dropshadow")):
+        effect.descriptor[Key.Enabled] = False
+    return layer
+
+
+def test_a_stroke_that_is_not_drawn_casts_no_shadow() -> None:
+    """An unreadable stroke fill drops the stroke, and the shadow with it."""
+    unreadable = _hollow(lambda data: data[b"strokeStyleContent"].pop(Key.Color))
+    disabled = _hollow(lambda data: data[b"strokeEnabled"].__setattr__("value", False))
+    viewport = (0, 0, 100, 100)
+    assert _alone(disabled, viewport, force=True).max() == 0.0
+    assert np.array_equal(
+        _alone(unreadable, viewport, force=True),
+        _alone(disabled, viewport, force=True),
+    )
+
+
+def test_a_hollow_inner_stroke_casts_what_it_draws() -> None:
+    """The silhouette is the stroke's rendered alpha, edge pixels included."""
+    layer = _unshadowed(
+        _hollow(
+            lambda data: data.__setitem__(
+                b"strokeStyleLineAlignment",
+                Enumerated(b"strokeStyleLineAlignment", b"strokeStyleAlignInside"),
+            )
+        )
+    )
+    viewport = (0, 0, 100, 100)
+    compositor = Compositor(
+        viewport,
+        np.ones((100, 100, 3), dtype=np.float32),
+        np.zeros((100, 100, 1), dtype=np.float32),
+        force=True,
+    )
+    cast = compositor._cast_shape(layer, viewport)
+    drawn = _alone(layer, viewport, force=True)
+    assert drawn.max() > 0.0
+    assert np.allclose(cast, drawn, atol=1e-6)
+
+
+def test_the_cast_box_reaches_an_outer_strokes_mitred_corner() -> None:
+    """A mitre reaches 1.5 widths from the path, and the box has to hold it."""
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-outer.psd"))
+    layer = next(x for x in psd.descendants() if x.kind == "shape")
+    assert layer.stroke is not None
+    width = layer.stroke.line_width
+    left, top, right, bottom = layer.bbox
+    reach = int(np.ceil(1.5 * width))
+    assert _cast_bbox(layer) == (
+        left - reach,
+        top - reach,
+        right + reach,
+        bottom + reach,
+    )
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_a_stroke_effect_does_not_grow_the_silhouette_its_shadow_is_cast_from(
+    force: bool,
+) -> None:
+    """Photoshop casts from the fill alone, so the shadow outruns the stroke band."""
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect.psd"))
+    assert _error(psd, None, force=force) <= 1e-4
+
+
+@pytest.mark.xfail(strict=True, reason="knockout under a stroke effect (#1139)")
+def test_a_knockout_is_cut_under_a_stroke_effect() -> None:
+    psd = PSDImage.open(full_name("effects/drop-shadow-stroke-effect-knockout.psd"))
+    assert _error(psd, None) <= 1e-4
 
 
 # -- Photoshop-authored grids ---------------------------------------------- #
