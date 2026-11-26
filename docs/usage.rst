@@ -35,7 +35,7 @@ Open an image::
     from psd_tools import PSDImage
     psdimage = PSDImage.open('my_image.psd')
 
-Most of the data structure in the :py:mod:`psd-tools` suppports pretty
+Most of the data structure in the ``psd-tools`` suppports pretty
 printing in IPython environment.
 
 .. code-block:: none
@@ -312,7 +312,7 @@ memoised the record you replaced goes on reporting what it read.
 Exporting data to PIL
 ---------------------
 
-Export the entire document as :py:class:`PIL.Image`::
+Export the entire document as :py:class:`PIL.Image.Image`::
 
     image = psd.composite()
     image.save('exported.png')
@@ -378,7 +378,7 @@ Exporting data to NumPy
 -----------------------
 
 PSDImage or layers can be exported to NumPy array by
-:py:meth:`~psd_tools.api.layers.PixelLayer.toarray` method, and built back with
+:py:meth:`~psd_tools.api.layers.Layer.toarray` method, and built back with
 :py:meth:`~psd_tools.PSDImage.fromarray`, :py:meth:`~psd_tools.api.layers.PixelLayer.fromarray`
 and ``create_mask_from_array()``::
 

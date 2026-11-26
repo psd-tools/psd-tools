@@ -26,7 +26,7 @@ Key modules:
 - :py:mod:`psd_tools.composite.effects`: Layer effects (stroke, shadow, etc.)
 - :py:mod:`psd_tools.composite.vector`: Vector shape and path rendering
 - :py:mod:`psd_tools.composite.scanline`: Exact coverage of a filled path
-- :py:mod:`psd_tools.composite.paint`: Fill rendering (gradients, patterns)
+- ``psd_tools.composite.paint``: Fill rendering (gradients, patterns)
 
 Example usage::
 

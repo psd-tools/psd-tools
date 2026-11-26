@@ -197,7 +197,7 @@ should not change when a new layer is added on top.
 PIL export
 ~~~~~~~~~~
 
-Primary PIL export method is :py:func:`~psd_tools.compose`.
+Primary PIL export method is ``psd_tools.compose``.
 
 version 1.7.x::
 

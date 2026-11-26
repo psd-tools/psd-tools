@@ -61,7 +61,7 @@ class Pattern(BaseElement):
     .. py:attribute:: version
     .. py:attribute:: image_mode
 
-        See :py:class:`ColorMode`
+        See :py:class:`~psd_tools.constants.ColorMode`
 
     .. py:attribute:: point
 

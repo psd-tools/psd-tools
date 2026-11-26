@@ -175,7 +175,7 @@ def _channel_length(width: int, height: int, depth: int) -> int:
     Shared by :func:`decompress`, which sizes every codec's output by it, and by
     :func:`decompressed_size_bound`, which has to predict that output without
     producing it. Rows all the way down: ``height`` of them, each
-    :func:`_row_size` wide.
+    ``_row_size`` wide.
     """
     return height * _row_size(width, depth)
 
@@ -398,7 +398,7 @@ def decompressed_size_bound(
     document *before* the buffer exists.
 
     ``length`` is :py:func:`decompress`'s own ``height`` rows of
-    :func:`_row_size`. The bound is exact for RAW and RLE and an over-estimate
+    ``_row_size``. The bound is exact for RAW and RLE and an over-estimate
     for the two ZIP codecs; a malformed body only comes back smaller, which is
     the safe direction for a guard.
 

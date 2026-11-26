@@ -399,10 +399,10 @@ def non_separable(k: Literal["b", "s"]):
 def non_separable_selection(func):
     """Wrap Darker Color or Lighter Color, which choose between whole pixels.
 
-    These take the array whole, K included, and compare :py:func:`_lightness`,
+    These take the array whole, K included, and compare ``_lightness``,
     which folds K in where the component modes use none. Both are Photoshop's
     behavior (#781). Fallbacks are :py:func:`non_separable`'s, via
-    :py:func:`_guarded`.
+    ``_guarded``.
     """
     return _guarded(func, func)
 
@@ -656,7 +656,7 @@ def hsv2hsl(img: np.ndarray) -> np.ndarray:
     return out
 
 
-"""Blend function table."""
+#: Blend function table.
 BLEND_FUNC = {
     # Layer attributes
     BlendMode.NORMAL: normal,

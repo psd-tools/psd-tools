@@ -264,7 +264,7 @@ class Stroke:
     @property
     def line_dash_set(self) -> list:
         """
-        Line dash set in list of :py:class:`~psd_tools.decoder.actions.UnitFloat`.
+        Line dash set in list of :py:class:`~psd_tools.psd.descriptor.UnitFloat`.
 
         :return: list
         """
@@ -408,7 +408,11 @@ class Origination:
 
     @property
     def invalidated(self) -> bool:
-        """:return: `bool`"""
+        """
+        Whether the live shape origination is invalidated.
+
+        :return: `bool`
+        """
         return False
 
     def __repr__(self) -> str:
@@ -522,5 +526,9 @@ class Line(Origination):
 
     @property
     def arrow_conc(self) -> int:
-        """:return: `int`"""
+        """
+        Arrow concavity.
+
+        :return: `int`
+        """
         return get_scalar(self._data, b"keyOriginLineArrConc", int, 0)

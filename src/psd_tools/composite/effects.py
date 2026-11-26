@@ -13,11 +13,14 @@ such as strokes, shadows, glows, and overlays.
 Currently supported effects:
 
 - **Stroke**: Outline around layer shape or pixels
+
   - Supports solid color, gradient, and pattern fills
   - Position: inside, outside, or centered
   - Limited compared to Photoshop's full implementation
+
 - **Drop shadow**: The layer's silhouette, spread, blurred and offset, painted
   behind the layer
+
   - Solid color; honors distance, angle (including global light), size,
     spread, opacity, blend mode and "layer knocks out drop shadow"
   - The blur is a gaussian approximation of Photoshop's own, and contour and
@@ -352,7 +355,7 @@ def _signed_distance(alpha: np.ndarray, reach: float | None = None) -> np.ndarra
     stays approximate is that a partial pixel's ``near`` is applied along the
     line to that pixel rather than along the boundary's own normal, which
     parts company with the truth around a curve the way
-    :py:func:`_distance_band` does when it paints the arc.
+    ``_distance_band`` does when it paints the arc.
 
     A mask that is flat at 0 or 1 has no boundary at all. That is not a case
     to fall through: ``distance_transform_edt`` is undefined on an input with
@@ -456,7 +459,7 @@ def draw_stroke_effect_split(
 
     The split is a share of the band rather than two bands drawn separately, so
     the two always sum to what :py:func:`draw_stroke_effect` returns. Drawn
-    separately they would not: :py:func:`_distance_band` multiplies the two
+    separately they would not: ``_distance_band`` multiplies the two
     edges' ramps, which is the area of a pixel cut by a straight edge only
     while the band is at least a pixel wide, and halving a band halves both
     halves' widths.

@@ -303,10 +303,10 @@ class Property(BaseElement):
 
 def _unit(value: Unit | Enum | bytes) -> Unit | Enum:
     """
-    Resolve a 4-byte unit code to a :py:class:`Unit` or an :py:class:`Enum`.
+    Resolve a 4-byte code to :py:class:`~psd_tools.terminology.Unit` or :py:class:`~psd_tools.terminology.Enum`.
 
     Photoshop writes a ruler unit such as ``Enum.RulerCm`` in a slot that is
-    otherwise a :py:class:`Unit`, so a code outside ``Unit`` is looked up in
+    otherwise a :py:class:`~psd_tools.terminology.Unit`, so a code outside ``Unit`` is looked up in
     ``Enum`` before it is rejected.
 
     :raises ValueError: if the code is a member of neither.
@@ -333,7 +333,7 @@ class UnitFloat(NumericElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`Unit` or :py:class:`Enum`
+        unit of the value in :py:class:`~psd_tools.terminology.Unit` or :py:class:`~psd_tools.terminology.Enum`
 
     .. py:attribute:: value
 
@@ -374,7 +374,7 @@ class UnitFloats(BaseElement):
 
     .. py:attribute:: unit
 
-        unit of the value in :py:class:`Unit` or :py:class:`Enum`
+        unit of the value in :py:class:`~psd_tools.terminology.Unit` or :py:class:`~psd_tools.terminology.Enum`
 
     .. py:attribute:: values
 

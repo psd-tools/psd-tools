@@ -16,7 +16,7 @@ Key classes:
 - :py:class:`ChannelData`: Single channel's compressed pixel data
 - :py:class:`MaskData`: Layer mask parameters
 - :py:class:`GlobalLayerMaskInfo`: Document-wide mask settings
-- :py:class:`TaggedBlocks`: Extended layer metadata (see :py:mod:`psd_tools.psd.tagged_blocks`)
+- :py:class:`~psd_tools.psd.tagged_blocks.TaggedBlocks`: Extended layer metadata (see :py:mod:`psd_tools.psd.tagged_blocks`)
 
 The layer structure in PSD files is stored as a flat list with implicit hierarchy.
 Group boundaries are marked by special layers with ``SectionDivider`` tagged blocks:
@@ -557,7 +557,7 @@ class LayerRecord(BaseElement):
 
     .. py:attribute:: blending_ranges
 
-        See :py:class:`~psd_tools.constants.LayerBlendingRanges`.
+        See :py:class:`~psd_tools.psd.layer_and_mask.LayerBlendingRanges`.
 
     .. py:attribute:: name
 
@@ -721,7 +721,7 @@ class LayerRecord(BaseElement):
     @property
     def channel_sizes(self) -> list[tuple[int, int]]:
         """
-        List of channel sizes: [(width, height)].
+        List of ``(width, height)`` channel sizes.
 
         A mask channel is reported as ``(0, 0)`` whenever its extent is empty
         or unknown: the record carries no mask block, the rectangle the channel

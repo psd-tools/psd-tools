@@ -3,10 +3,10 @@ Base data structures intended for inheritance.
 
 All the data objects in this subpackage inherit from the base classes here.
 That means, all the data structures in the :py:mod:`psd_tools.psd` subpackage
-implements the methods of :py:class:`~psd_tools.psd.BaseElement` for
+implements the methods of :py:class:`~psd_tools.psd.base.BaseElement` for
 serialization and decoding.
 
-Objects that inherit from the :py:class:`~psd_tools.psd.BaseElement` typically
+Objects that inherit from the :py:class:`~psd_tools.psd.base.BaseElement` typically
 gets attrs_ decoration to have data fields.
 
 .. _attrs: https://www.attrs.org/en/stable/index.html

@@ -768,10 +768,12 @@ def composite(
         as_layer: If True, treat the group as a layer (apply blend mode to backdrop)
 
     Returns:
-        Tuple of (color, shape, alpha) as float32 ndarrays with shape (height, width, channels):
-            - color: RGB/CMYK/Grayscale values in range [0.0, 1.0]
-            - shape: Layer shape/coverage mask in range [0.0, 1.0]
-            - alpha: Composite alpha channel in range [0.0, 1.0]
+        Tuple ``(color, shape, alpha)`` of float32 ndarrays with shape
+        ``(height, width, channels)``:
+
+        - ``color``: RGB/CMYK/Grayscale values in range [0.0, 1.0]
+        - ``shape``: Layer shape/coverage mask in range [0.0, 1.0]
+        - ``alpha``: Composite alpha channel in range [0.0, 1.0]
 
     Examples:
         >>> from psd_tools import PSDImage

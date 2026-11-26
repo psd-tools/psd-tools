@@ -155,7 +155,7 @@ def check_growth(pixels: int, reference_pixels: int, factor: int) -> None:
 
 
 class PSDLargeImageWarning(UserWarning):
-    """Issued when a PSD canvas exceeds the soft pixel limit (:data:`WARN_PIXELS`)."""
+    """Issued when a PSD canvas exceeds the soft pixel limit (``WARN_PIXELS``)."""
 
 
 def check_pixel_size(
