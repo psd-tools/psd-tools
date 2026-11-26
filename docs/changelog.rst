@@ -740,7 +740,7 @@ Changelog
   angle, and :py:func:`psd_tools.color_convert.hsb_to_rgb` is now total
   (#757, #764)
 - [fix] Read a 32-bit document with transparency through
-  :py:meth:`~psd_tools.api.psd_image.PSDImage.numpy` and
+  :py:meth:`~psd_tools.PSDImage.numpy` and
   :py:func:`psd_tools.composite.composite`, which raised ``ValueError:
   assignment destination is read-only``. Costs one extra array on 32-bit
   documents, matching the other depths; ``topil()`` was unaffected (#738)

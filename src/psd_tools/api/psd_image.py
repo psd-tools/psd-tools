@@ -102,7 +102,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
     """
     Photoshop PSD/PSB document.
 
-    The low-level data structure is accessible at :py:attr:`PSDImage._record`.
+    The low-level data structure is accessible at ``PSDImage._record``.
 
     Example::
 
@@ -433,7 +433,7 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
             image. See :py:class:`~psd_tools.constants.ChannelID`. When `None`,
             the method returns all the channels supported by PIL modes.
         :param apply_icc: Whether to apply ICC profile conversion to sRGB.
-        :return: :py:class:`PIL.Image`, or `None` if the composed image is not
+        :return: :py:class:`PIL.Image.Image`, or `None` if the composed image is not
             available.
         """
         if self.has_preview():
@@ -487,8 +487,8 @@ class PSDImage(layers.GroupMixin, PSDProtocol):
         :param alpha: Backdrop alpha in [0.0, 1.0].
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
-            :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
-        :return: :py:class:`PIL.Image`.
+            :py:meth:`~psd_tools.api.layers.Layer.is_visible`.
+        :return: :py:class:`PIL.Image.Image`.
         """
         from psd_tools.composite import composite_pil  # noqa: PLC0415
 

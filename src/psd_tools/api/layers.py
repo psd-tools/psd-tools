@@ -1154,7 +1154,7 @@ class Layer(LayerProtocol):
         :param alpha: Backdrop alpha in [0.0, 1.0].
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
-            :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
+            :py:meth:`~psd_tools.api.layers.Layer.is_visible`.
         :param include_effects: Use :py:attr:`effects_bbox` as the viewport, so
             effects that paint outside the layer are kept. Default is False,
             which keeps the output the size of :py:attr:`bbox`. Cannot be
@@ -1718,7 +1718,8 @@ class Layer(LayerProtocol):
             Default is the top.
         :raises ValueError: If ``parent`` is not a group or document of this
             layer's document, the move would create a reference loop, or the
-            layer is an :py:class:`Artboard` and ``parent`` is not the document.
+            layer is an :py:class:`~psd_tools.api.layers.Artboard` and
+            ``parent`` is not the document.
         :raises TypeError: If ``index`` is not an integer.
         :raises IndexError: If ``index`` is out of range.
         :return: self
@@ -2501,10 +2502,10 @@ class Group(GroupMixin, Layer):
         :param alpha: Backdrop alpha in [0.0, 1.0].
         :param layer_filter: Callable that takes a layer as argument and
             returns whether if the layer is composited. Default is
-            :py:func:`~psd_tools.api.layers.PixelLayer.is_visible`.
-        :param include_effects: Use :py:attr:`effects_bbox` as the viewport, so
+            :py:meth:`~psd_tools.api.layers.Layer.is_visible`.
+        :param include_effects: Use :py:attr:`~Layer.effects_bbox` as the viewport, so
             effects that paint outside the layer are kept. Default is False,
-            which keeps the output the size of :py:attr:`bbox`. Cannot be
+            which keeps the output the size of :py:attr:`~Layer.bbox`. Cannot be
             combined with ``viewport``.
         :return: :py:class:`PIL.Image.Image`.
         """

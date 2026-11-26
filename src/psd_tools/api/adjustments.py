@@ -112,7 +112,7 @@ class BrightnessContrast(AdjustmentLayer):
 
     @property
     def lab(self) -> bool:
-        """Value of the `Lab ` flag."""
+        """Value of the ``b"Lab "`` flag."""
         return get_scalar(self._data, b"Lab ", bool, False)
 
     @property
