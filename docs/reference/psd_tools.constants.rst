@@ -80,6 +80,20 @@ EffectOSType
     :members:
     :undoc-members:
 
+FontBaseline
+------------
+
+.. autoclass:: psd_tools.constants.FontBaseline
+    :members:
+    :undoc-members:
+
+FontCaps
+--------
+
+.. autoclass:: psd_tools.constants.FontCaps
+    :members:
+    :undoc-members:
+
 GlobalLayerMaskKind
 -------------------
 
@@ -105,6 +119,13 @@ GradientType
 ------------
 
 .. autoclass:: psd_tools.constants.GradientType
+    :members:
+    :undoc-members:
+
+Justification
+-------------
+
+.. autoclass:: psd_tools.constants.Justification
     :members:
     :undoc-members:
 
@@ -150,6 +171,13 @@ SectionDivider
     :members:
     :undoc-members:
 
+SheetColorType
+--------------
+
+.. autoclass:: psd_tools.constants.SheetColorType
+    :members:
+    :undoc-members:
+
 StrokeAlignment
 ---------------
 
@@ -182,5 +210,12 @@ TextType
 --------
 
 .. autoclass:: psd_tools.constants.TextType
+    :members:
+    :undoc-members:
+
+WritingDirection
+----------------
+
+.. autoclass:: psd_tools.constants.WritingDirection
     :members:
     :undoc-members:

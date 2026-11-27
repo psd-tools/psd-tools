@@ -28,6 +28,9 @@ defined: :py:class:`~psd_tools.api.shape.Invalidated`,
 :py:class:`~psd_tools.api.shape.Ellipse`,
 and :py:class:`~psd_tools.api.shape.RoundedRectangle`.
 
+.. autoclass:: psd_tools.api.shape.Origination
+    :members:
+
 Invalidated
 ^^^^^^^^^^^
 

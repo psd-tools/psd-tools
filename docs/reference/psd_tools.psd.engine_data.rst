@@ -27,6 +27,12 @@ Dict
 .. autoclass:: psd_tools.psd.engine_data.Dict
     :members:
 
+EngineToken
+-----------
+
+.. autoclass:: psd_tools.psd.engine_data.EngineToken
+    :members:
+
 Float
 -----
 
@@ -55,4 +61,10 @@ String
 ---------
 
 .. autoclass:: psd_tools.psd.engine_data.String
+    :members:
+
+Tokenizer
+---------
+
+.. autoclass:: psd_tools.psd.engine_data.Tokenizer
     :members:

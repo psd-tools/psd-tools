@@ -17,6 +17,12 @@ GroupMixin
     :members:
     :special-members: __len__, __iter__, __getitem__, __delitem__
 
+AdjustmentLayer
+---------------
+
+.. autoclass:: psd_tools.api.layers.AdjustmentLayer
+    :members:
+
 Artboard
 --------
 
@@ -24,6 +30,12 @@ Artboard
     :members:
 
 .. autoclass:: psd_tools.api.layers.ArtboardBackground
+    :members:
+
+FillLayer
+---------
+
+.. autoclass:: psd_tools.api.layers.FillLayer
     :members:
 
 Group

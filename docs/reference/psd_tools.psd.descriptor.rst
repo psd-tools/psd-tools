@@ -45,6 +45,18 @@ Descriptor
 .. autoclass:: psd_tools.psd.descriptor.Descriptor
     :members:
 
+DescriptorBlock
+---------------
+
+.. autoclass:: psd_tools.psd.descriptor.DescriptorBlock
+    :members:
+
+DescriptorBlock2
+----------------
+
+.. autoclass:: psd_tools.psd.descriptor.DescriptorBlock2
+    :members:
+
 Double
 ------
 
