@@ -141,6 +141,28 @@ def test_padding_bits_are_not_pixels() -> None:
     assert np.array_equal(psd.numpy()[:, :, 0], _expected("20x5_1bit_bitmap.psd"))
 
 
+@pytest.mark.parametrize("bytes_kept", [0, 1, 2])
+@pytest.mark.parametrize("read", ["numpy", "topil", "composite", "force"])
+def test_a_bitmap_without_a_complete_row_raises_value_error(
+    bytes_kept: int, read: str
+) -> None:
+    """Truncated pixel data must not escape as IndexError from the compositor."""
+    if read in ("composite", "force"):
+        pytest.importorskip("aggdraw")
+        pytest.importorskip("scipy")
+    with open(full_name("colormodes/20x5_1bit_bitmap.psd"), "rb") as fp:
+        data = fp.read()
+    # The RAW image section ends in five three-byte rows. Keep less than one.
+    psd = PSDImage.open(io.BytesIO(data[:-15] + data[-15:][:bytes_kept]))
+    with pytest.raises(ValueError):
+        if read == "force":
+            psd.composite(force=True)
+        elif read == "composite":
+            psd.composite(ignore_preview=True)
+        else:
+            getattr(psd, read)()
+
+
 def test_an_undecodable_1bit_document_degrades_to_black() -> None:
     """The black fill, read back through both entry points rather than as bytes.
 
