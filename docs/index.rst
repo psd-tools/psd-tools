@@ -97,14 +97,20 @@ Not supported:
     reference/psd_tools.api.effects
     reference/psd_tools.api.layers
     reference/psd_tools.api.mask
+    reference/psd_tools.api.numpy_io
+    reference/psd_tools.api.pil_io
     reference/psd_tools.api.protocols
+    reference/psd_tools.api.psd_image
     reference/psd_tools.api.shape
     reference/psd_tools.api.smart_object
+    reference/psd_tools.api.typesetting
+    reference/psd_tools.api.utils
     reference/psd_tools.color_convert
     reference/psd_tools.composite
     reference/psd_tools.compression
     reference/psd_tools.constants
     reference/psd_tools.psd
+    reference/psd_tools.psd.adjustments
     reference/psd_tools.psd.base
     reference/psd_tools.psd.color_mode_data
     reference/psd_tools.psd.descriptor
